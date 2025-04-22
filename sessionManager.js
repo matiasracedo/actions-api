@@ -42,9 +42,9 @@ async function getAccessToken() {
 
 
 async function keepLatestSessionOnly(userId, actionName) {
-  const accessToken = process.env.ACCESS_TOKEN;
+  const accessToken = ACCESS_TOKEN;
 
-  const listResp = await fetch(`${process.env.ZITADEL_DOMAIN}/v2/sessions/search`, {
+  const listResp = await fetch(`${ZITADEL_DOMAIN}/v2/sessions/search`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -81,7 +81,7 @@ async function keepLatestSessionOnly(userId, actionName) {
   console.log(`${actionName}: Keeping session ${latest.id}, deleting ${toDelete.length} older sessions.`);
 
   await Promise.all(toDelete.map(session =>
-    fetch(`${process.env.ZITADEL_DOMAIN}/v2/sessions/${session.id}`, {
+    fetch(`${ZITADEL_DOMAIN}/v2/sessions/${session.id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${accessToken}`,
