@@ -61,6 +61,7 @@ async function keepLatestSessionOnly(userId, actionName) {
   }
 
   const sessions = await listResp.json() || [];
+  console.log(sessions);
   if (sessions.sessions.length <= 1) {
     console.log(`${actionName}: Only one session active, nothing to delete.`);
     return;
