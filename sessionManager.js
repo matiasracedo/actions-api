@@ -16,7 +16,7 @@ async function uniqueSession(userId) {
 
 // This function retrieves an access token using the client credentials grant type.
 async function getAccessToken() {
-  const response = await fetch(`http://${process.env.ZITADEL_DOMAIN}/oauth/v2/token`, {
+  const response = await fetch(`https://${process.env.ZITADEL_DOMAIN}/oauth/v2/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -36,7 +36,7 @@ async function getAccessToken() {
 async function keepLatestSessionOnly(userId, actionName) {
   const accessToken = process.env.ACCESS_TOKEN;
 
-  const listResp = await fetch(`http://${process.env.ZITADEL_DOMAIN}/v2/sessions/search`, {
+  const listResp = await fetch(`https://${process.env.ZITADEL_DOMAIN}/v2/sessions/search`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -72,7 +72,7 @@ async function keepLatestSessionOnly(userId, actionName) {
   console.log(`${actionName}: Keeping session ${latest.id}, deleting ${toDelete.length} older sessions.`);
 
   await Promise.all(toDelete.map(session =>
-    fetch(`http://${process.env.ZITADEL_DOMAIN}/v2/sessions/${session.id}`, {
+    fetch(`https://${process.env.ZITADEL_DOMAIN}/v2/sessions/${session.id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${accessToken}`,
