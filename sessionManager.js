@@ -14,6 +14,7 @@ async function uniqueSession(userId) {
   return;
 }
 
+// This function retrieves an access token using the client credentials grant type.
 async function getAccessToken() {
   const response = await fetch(`http://${process.env.ZITADEL_DOMAIN}/oauth/v2/token`, {
     method: 'POST',
@@ -31,8 +32,9 @@ async function getAccessToken() {
   return data.access_token;
 }
 
+
 async function keepLatestSessionOnly(userId, actionName) {
-  const accessToken = await getAccessToken();
+  const accessToken = process.env.ACCESS_TOKEN;
 
   const listResp = await fetch(`http://${process.env.ZITADEL_DOMAIN}/v2/sessions/search`, {
     method: 'POST',
