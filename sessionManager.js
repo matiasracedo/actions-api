@@ -1,17 +1,10 @@
 require('dotenv').config();
 
-let ZITADEL_DOMAIN = process.env.ZITADEL_DOMAIN;
-let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
-
 // This is a ZITADEL action that keeps only the latest session for a user.
-async function uniqueSession(userId, env) {
+async function uniqueSession(userId) {
   console.log('ENTERED uniqueSession ACTION');
 
-  if (env === 'local') {
-    console.log('Running in local environment');
-    ZITADEL_DOMAIN = process.env.LOCAL_ZITADEL_DOMAIN;
-    ACCESS_TOKEN = process.env.LOCAL_ACCESS_TOKEN;
-  }
+
   try {
     await keepLatestSessionOnly(userId, 'uniqueSession');
   } catch (error) {
@@ -24,7 +17,7 @@ async function uniqueSession(userId, env) {
 
 // This function retrieves an access token using the client credentials grant type.
 async function getAccessToken() {
-  const response = await fetch(`${process.env.ZITADEL_DOMAIN}/oauth/v2/token`, {
+  const response = await fetch(`https://${process.env.ZITADEL_DOMAIN}/oauth/v2/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -42,9 +35,9 @@ async function getAccessToken() {
 
 
 async function keepLatestSessionOnly(userId, actionName) {
-  const accessToken = ACCESS_TOKEN;
+  const accessToken = process.env.ACCESS_TOKEN;
 
-  const listResp = await fetch(`${ZITADEL_DOMAIN}/v2/sessions/search`, {
+  const listResp = await fetch(`https://${process.env.ZITADEL_DOMAIN}/v2/sessions/search`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -81,7 +74,7 @@ async function keepLatestSessionOnly(userId, actionName) {
   console.log(`${actionName}: Keeping session ${latest.id}, deleting ${toDelete.length} older sessions.`);
 
   await Promise.all(toDelete.map(session =>
-    fetch(`${ZITADEL_DOMAIN}/v2/sessions/${session.id}`, {
+    fetch(`https://${process.env.ZITADEL_DOMAIN}/v2/sessions/${session.id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${accessToken}`,
