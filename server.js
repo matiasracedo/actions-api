@@ -25,6 +25,11 @@ app.post('/action/uniqueSession', async (req, res) => {
   }
 }); 
 
+app.post('/action/test', async (req, res) => {
+
+    console.log('Received request:', req.body);
+    res.status(200).json({ status: 'All good...' });
+  }); 
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
