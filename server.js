@@ -39,6 +39,16 @@ app.post('/action/test', async (req, res) => {
     res.status(200).json(claims);
   }); 
 
+app.post('/action/postPasswordReset', async (req, res) => {
+  console.log('=== POST PASSWORD RESET ACTION ===');
+  console.log('Headers:', req.headers);
+  console.log('Request Body:', JSON.stringify(req.body, null, 2));
+  console.log('=====================================');
+  
+  // Return a success response to Zitadel
+  res.status(200).json({ status: 'Password reset action processed successfully' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
