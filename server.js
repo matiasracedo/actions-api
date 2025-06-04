@@ -41,12 +41,20 @@ app.post('/action/test', async (req, res) => {
 
 app.post('/action/postPasswordReset', async (req, res) => {
   console.log('=== POST PASSWORD RESET ACTION ===');
-  console.log('Headers:', req.headers);
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
   console.log('=====================================');
   
-  // Return a success response to Zitadel
-  res.status(200).json({ status: 'Password reset action processed successfully' });
+  // For restCall target type, we need to return the request object back
+  // Extract the request from the payload and return it (unchanged in this case)
+  const { request } = req.body;
+  
+  if (!request) {
+    console.error('No request object found in payload');
+    return res.status(400).json({ error: 'No request object found in payload' });
+  }
+  
+  // Return the request object back to Zitadel (unchanged for logging purposes)
+  res.status(200).json(request);
 });
 
 app.listen(PORT, () => {
