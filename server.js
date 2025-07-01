@@ -79,7 +79,7 @@ app.get('/auth/start', async (req, res) => {
     const response = await fetch(url.toString(), {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${idToken}`,
+        'x-custom-tkn': `${idToken}`,
         'Content-Type': 'application/json'
       }
     });
