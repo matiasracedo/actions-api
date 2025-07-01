@@ -57,9 +57,11 @@ app.post('/action/postPasswordReset', async (req, res) => {
   res.status(200).json(response);
 });
 
-app.post('/auth/start', async (req, res) => {
+app.get('/auth/start', async (req, res) => {
   console.log('JWT IdP flow started');
-  console.log('Request Body:', JSON.stringify(req.body, null, 2));
+  console.log('Request Query:', JSON.stringify(req.query, null, 2));  
+  console.log('Request Headers:', JSON.stringify(req.headers, null, 2));
+  res.status(200).json({ status: 'JWT IdP flow started' });
 });
 
 app.listen(PORT, () => {
