@@ -78,11 +78,12 @@ app.get('/auth/start', async (req, res) => {
     console.log('Forwarding to Zitadel URL:', url.toString());
     
     const response = await fetch(url.toString(), {
-      method: 'POST',
+      method: 'GET',
       headers: {
         'x-custom-tkn': `${idToken}`,
         'Content-Type': 'application/json'
-      }
+      },
+      redirect: 'follow'
     });
     
     console.log('Zitadel response status:', response.status);
