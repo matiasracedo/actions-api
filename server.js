@@ -67,7 +67,7 @@ app.get('/auth/start', async (req, res) => {
 
   try {
     // Forward the request to Zitadel's JWT IdP endpoint
-    const zitadelUrl = 'https://matias-auth-bkeog4.us1.zitadel.cloud/ipds/jwt';
+    const zitadelUrl = 'https://matias-auth-bkeog4.us1.zitadel.cloud/idps/jwt';
     
     // Create URL with query parameters
     const url = new URL(zitadelUrl);
@@ -78,12 +78,11 @@ app.get('/auth/start', async (req, res) => {
     console.log('Forwarding to Zitadel URL:', url.toString());
     
     const response = await fetch(url.toString(), {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'x-custom-tkn': `${idToken}`,
         'Content-Type': 'application/json'
-      },
-      redirect: 'follow'
+      }
     });
     
     console.log('Zitadel response status:', response.status);
