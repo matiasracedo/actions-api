@@ -95,17 +95,19 @@ app.post('/action/external-post-auth', (req, res) => {
   console.log('Received external post-auth request:', JSON.stringify(req.body, null, 2));
   
   const ctx  = req.body;
-  const resp = ctx?.response;
-
-  if (!resp) {
-    console.error('No response object found in payload');
-    return res.status(400).json({ error: 'No response object found in payload' });
+  
+  // Try the same pattern as postPasswordReset - extract request instead of response
+  const { request } = ctx;
+  
+  if (!request) {
+    console.error('No request object found in payload');
+    return res.status(400).json({ error: 'No request object found in payload' });
   }
 
-  console.log('Returning response unchanged to avoid COMMA error');
+  console.log('Returning REQUEST unchanged to match postPasswordReset pattern');
   
   // Use the exact same pattern as postPasswordReset that works
-  res.status(200).json(resp);
+  res.status(200).json(request);
 });
 
 
