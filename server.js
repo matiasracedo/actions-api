@@ -98,26 +98,34 @@ app.post('/action/external-post-auth', (req, res) => {
     const ctx  = req.body;
     const resp = ctx?.response;
 
-    if (!resp) {
-      console.log('No response found, returning empty object');
-      return res.status(200).json({});
+    if (!resp?.addHumanUser) {
+      console.log('No addHumanUser found, returning response as-is');
+      return res.status(200).json(resp || {});
     }
 
-    // Try different approaches to debug the COMMA error
-    console.log('Response type:', typeof resp);
-    console.log('Response keys:', Object.keys(resp));
+    // Create a deep copy to avoid mutating the original
+    const responseClone = JSON.parse(JSON.stringify(resp));
+    const addUser = responseClone.addHumanUser;
+    const extInfo = responseClone.idpInformation?.rawInformation ?? {};
+    
+    console.log('Processing addHumanUser with external info');
+
+    // Add metadata – values must be BASE-64 strings 
+    if (!addUser.metadata) addUser.metadata = [];
+    const b64 = v => Buffer.from(String(v)).toString('base64');
+    
+    addUser.metadata.push(
+      { key: 'okta_authentication_type', value: b64('SSO:OKTA:OIDC') },
+      { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
+    );
+
+    console.log('Returning full response with metadata added');
     
     // Ensure we're setting the correct content type
     res.setHeader('Content-Type', 'application/json');
     
-    // Try returning just the addHumanUser part first to see if that works
-    if (resp.addHumanUser) {
-      console.log('Returning only addHumanUser to test');
-      return res.status(200).json(resp.addHumanUser);
-    }
-    
-    console.log('Returning full response as-is');
-    return res.status(200).json(resp);
+    // Return the complete response structure (this is key!)
+    return res.status(200).json(responseClone);
     
   } catch (error) {
     console.error('Error in external-post-auth:', error);
