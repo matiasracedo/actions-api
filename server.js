@@ -92,7 +92,7 @@ app.post('/action/internal-post-auth', async (req, res) => {
 // 3) Okta OIDC – post auth  (sync restCall on RetrieveIdentityProviderIntent)
 // ---------------------------------------------------------------------------
 app.post('/action/external-post-auth', (req, res) => {
-  console.log('Received external post-auth request:', req.body);
+  console.log('Received external post-auth request:', JSON.stringify(req.body, null, 2));
   const ctx  = req.body;
   const resp = ctx?.response;
 
@@ -125,7 +125,7 @@ app.post('/action/external-post-auth', (req, res) => {
     { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
   );
 
-  console.log('External post-auth completed:', resp);
+  console.log('External post-auth completed:', JSON.stringify(resp, null, 2));
   return res.json(resp);                            // ONLY the response object!
 });
 
