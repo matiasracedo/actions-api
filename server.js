@@ -48,6 +48,7 @@ async function setUserMetadata(userId, meta) {
 // 1) Complement token – preuserinfo  (sync restCall)
 // ---------------------------------------------------------------------------
 app.post('/action/preuserinfo', (req, res) => {
+  console.log('Received preuserinfo request:', req.body);
   const { user_metadata = [], org = {} } = req.body;
   const append_claims = [];
 
@@ -60,6 +61,7 @@ app.post('/action/preuserinfo', (req, res) => {
   user_metadata.forEach(addIfPrefixed);
   (org.metadata || []).forEach(addIfPrefixed);
 
+  console.log('Appending claims:', append_claims);
   res.json({
     append_claims
   });
@@ -69,6 +71,7 @@ app.post('/action/preuserinfo', (req, res) => {
 // 2) Internal e-mail/password login –  post auth  (sync restWebhook)
 // ---------------------------------------------------------------------------
 app.post('/action/internal-post-auth', async (req, res) => {
+  console.log('Received internal post-auth request:', req.body);
   try {
     const userId = req.body.userID;
     if (userId) {
@@ -89,6 +92,7 @@ app.post('/action/internal-post-auth', async (req, res) => {
 // 3) Okta OIDC – post auth  (sync restCall on RetrieveIdentityProviderIntent)
 // ---------------------------------------------------------------------------
 app.post('/action/external-post-auth', (req, res) => {
+  console.log('Received external post-auth request:', req.body);
   const ctx  = req.body;
   const resp = ctx?.response;
 
@@ -112,7 +116,7 @@ app.post('/action/external-post-auth', (req, res) => {
   pushMeta('okta_authentication_type', 'SSO:OKTA:OIDC');
   pushMeta('okta_groups', JSON.stringify(extInfo.groups ?? []));
 
-  console.log('SSO_FLOW for user', ctx.userID);
+  console.log('Ending external post-auth flow for user', ctx.userID);
   res.json(resp);
 });
 
