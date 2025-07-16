@@ -93,18 +93,36 @@ app.post('/action/internal-post-auth', async (req, res) => {
 // ---------------------------------------------------------------------------
 app.post('/action/external-post-auth', (req, res) => {
   console.log('Received external post-auth request:', JSON.stringify(req.body, null, 2));
-  const ctx  = req.body;
-  const resp = ctx?.response;
-
-  if (!resp) {
-    console.log('No response found, returning empty object');
-    return res.json({});
-  }
-
-  console.log('Returning response as-is for now to debug COMMA error');
   
-  // Return the response unchanged to see if that fixes the COMMA error
-  return res.json(resp);                            
+  try {
+    const ctx  = req.body;
+    const resp = ctx?.response;
+
+    if (!resp) {
+      console.log('No response found, returning empty object');
+      return res.status(200).json({});
+    }
+
+    // Try different approaches to debug the COMMA error
+    console.log('Response type:', typeof resp);
+    console.log('Response keys:', Object.keys(resp));
+    
+    // Ensure we're setting the correct content type
+    res.setHeader('Content-Type', 'application/json');
+    
+    // Try returning just the addHumanUser part first to see if that works
+    if (resp.addHumanUser) {
+      console.log('Returning only addHumanUser to test');
+      return res.status(200).json(resp.addHumanUser);
+    }
+    
+    console.log('Returning full response as-is');
+    return res.status(200).json(resp);
+    
+  } catch (error) {
+    console.error('Error in external-post-auth:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 
