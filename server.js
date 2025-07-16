@@ -125,7 +125,7 @@ app.post('/action/external-post-auth', (req, res) => {
     { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
   );
 
-  console.log('External post-auth completed for', addUser.username);
+  console.log('External post-auth completed:', addUser);
   return res.json(resp);                            // ONLY the response object!
 });
 
