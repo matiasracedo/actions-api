@@ -67,7 +67,7 @@ app.post('/action/preuserinfo', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 2) Internal e-mail/password login –  post auth  (async restWebhook)
+// 2) Internal e-mail/password login –  post auth  (sync restWebhook)
 // ---------------------------------------------------------------------------
 app.post('/action/internal-post-auth', async (req, res) => {
   try {
@@ -97,6 +97,7 @@ app.post('/action/external-post-auth', (req, res) => {
 
   const addUser = resp.addHumanUser;
   const extInfo = resp.idpInformation?.[0]?.user ?? {};
+  console.log('Received external post-auth request extInfo:', extInfo);
 
   addUser.firstName         = extInfo.given_name      || addUser.firstName;
   addUser.lastName          = extInfo.family_name     || addUser.lastName;
