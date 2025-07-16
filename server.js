@@ -96,16 +96,22 @@ app.post('/action/external-post-auth', (req, res) => {
   const ctx  = req.body;
   const resp = ctx?.response;
 
-  if (!resp?.addHumanUser) return res.json(resp || {});
+  if (!resp?.addHumanUser) {
+    console.log('No addHumanUser found, returning response as-is');
+    return res.json(resp || {});
+  }
 
-  const addUser = resp.addHumanUser;
+  // Create a deep copy to avoid mutating the original
+  const responseClone = JSON.parse(JSON.stringify(resp));
+  const addUser = responseClone.addHumanUser;
+  const extInfo = responseClone.idpInformation?.rawInformation ?? {};
+  
   console.log('Received external post-auth request addUser:', JSON.stringify(addUser));
-  const extInfo = resp.idpInformation?.rawInformation ?? {};
   console.log('Received external post-auth request extInfo:', extInfo);
 
-  // Ensure nested objects exist (avoids COMMA-errors)    
-  addUser.profile ??= {};
-  addUser.email   ??= {};
+  // Ensure nested objects exist
+  if (!addUser.profile) addUser.profile = {};
+  if (!addUser.email) addUser.email = {};
 
   // Copy / normalise attributes      
   if (extInfo.given_name)  addUser.profile.givenName  = extInfo.given_name;
@@ -114,20 +120,22 @@ app.post('/action/external-post-auth', (req, res) => {
   if (extInfo.email) {
     addUser.email.email  = extInfo.email;
     addUser.username     = extInfo.email;
-    addUser.email.isVerified = true;                // only when email present
+    addUser.email.isVerified = true;
   }
 
   // Add metadata – values must be BASE-64 strings 
-  addUser.metadata ??= [];
-  const b64 = v => Buffer.from(v).toString('base64');
+  if (!addUser.metadata) addUser.metadata = [];
+  const b64 = v => Buffer.from(String(v)).toString('base64');
+  
   addUser.metadata.push(
     { key: 'okta_authentication_type', value: b64('SSO:OKTA:OIDC') },
     { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
   );
 
-  // IMPORTANT: For response manipulation, return only the response object
-  // The Go example shows: return the manipulated response, not the full context
-  return res.json(resp);                            
+  console.log('Final response being returned:', JSON.stringify(responseClone, null, 2));
+  
+  // Return the modified response
+  return res.json(responseClone);                            
 });
 
 
