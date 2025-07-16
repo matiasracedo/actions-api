@@ -96,46 +96,15 @@ app.post('/action/external-post-auth', (req, res) => {
   const ctx  = req.body;
   const resp = ctx?.response;
 
-  if (!resp?.addHumanUser) {
-    console.log('No addHumanUser found, returning response as-is');
-    return res.json(resp || {});
+  if (!resp) {
+    console.log('No response found, returning empty object');
+    return res.json({});
   }
 
-  // Create a deep copy to avoid mutating the original
-  const responseClone = JSON.parse(JSON.stringify(resp));
-  const addUser = responseClone.addHumanUser;
-  const extInfo = responseClone.idpInformation?.rawInformation ?? {};
+  console.log('Returning response as-is for now to debug COMMA error');
   
-  console.log('Received external post-auth request addUser:', JSON.stringify(addUser));
-  console.log('Received external post-auth request extInfo:', extInfo);
-
-  // Ensure nested objects exist
-  if (!addUser.profile) addUser.profile = {};
-  if (!addUser.email) addUser.email = {};
-
-  // Copy / normalise attributes      
-  if (extInfo.given_name)  addUser.profile.givenName  = extInfo.given_name;
-  if (extInfo.family_name) addUser.profile.familyName = extInfo.family_name;
-
-  if (extInfo.email) {
-    addUser.email.email  = extInfo.email;
-    addUser.username     = extInfo.email;
-    addUser.email.isVerified = true;
-  }
-
-  // Add metadata – values must be BASE-64 strings 
-  if (!addUser.metadata) addUser.metadata = [];
-  const b64 = v => Buffer.from(String(v)).toString('base64');
-  
-  addUser.metadata.push(
-    { key: 'okta_authentication_type', value: b64('SSO:OKTA:OIDC') },
-    { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
-  );
-
-  console.log('Final response being returned:', JSON.stringify(responseClone, null, 2));
-  
-  // Return the modified response
-  return res.json(responseClone);                            
+  // Return the response unchanged to see if that fixes the COMMA error
+  return res.json(resp);                            
 });
 
 
