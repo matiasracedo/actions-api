@@ -103,21 +103,30 @@ app.post('/action/external-post-auth', (req, res) => {
   const extInfo = resp.idpInformation?.rawInformation ?? {};
   console.log('Received external post-auth request extInfo:', extInfo);
 
-  addUser.profile.givenName    = extInfo.given_name      || addUser.profile.givenName;
-  addUser.profile.familyName   = extInfo.family_name     || addUser.profile.familyName ;
-  addUser.email.email          = extInfo.email           || addUser.email.email;
-  addUser.username             = extInfo.email           || addUser.username;
-  addUser.email.isVerified     = true;
+  // Ensure nested objects exist (avoids COMMA-errors)    
+  addUser.profile ??= {};
+  addUser.email   ??= {};
 
+  // Copy / normalise attributes      
+  if (extInfo.given_name)  addUser.profile.givenName  = extInfo.given_name;
+  if (extInfo.family_name) addUser.profile.familyName = extInfo.family_name;
+
+  if (extInfo.email) {
+    addUser.email.email  = extInfo.email;
+    addUser.username     = extInfo.email;
+    addUser.email.isVerified = true;                // only when email present
+  }
+
+  // Add metadata – values must be BASE-64 strings 
   addUser.metadata ??= [];
-  const pushMeta = (k, v) =>
-    addUser.metadata.push({ key: k, value: Buffer.from(v).toString('base64') });
+  const b64 = v => Buffer.from(v).toString('base64');
+  addUser.metadata.push(
+    { key: 'okta_authentication_type', value: b64('SSO:OKTA:OIDC') },
+    { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
+  );
 
-  pushMeta('okta_authentication_type', 'SSO:OKTA:OIDC');
-  pushMeta('okta_groups', JSON.stringify(extInfo.groups ?? []));
-
-  console.log('Ending external post-auth flow for user', ctx.userID);
-  res.json(resp);
+  console.log('External post-auth completed for', addUser.username);
+  return res.json(resp);                            // ONLY the response object!
 });
 
 
