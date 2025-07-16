@@ -96,7 +96,7 @@ app.post('/action/external-post-auth', (req, res) => {
 
   const addUser = resp.addHumanUser;
   console.log('Received external post-auth request addUser:', JSON.stringify(addUser));
-  const extInfo = resp.idpInformatio.rawInformation ?? {};
+  const extInfo = resp.idpInformation?.rawInformation ?? {};
   console.log('Received external post-auth request extInfo:', extInfo);
 
   addUser.profile.givenName    = extInfo.given_name      || addUser.profile.givenName;
