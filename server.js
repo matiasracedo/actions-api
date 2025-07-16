@@ -125,8 +125,8 @@ app.post('/action/external-post-auth', (req, res) => {
     { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
   );
 
-  console.log('External post-auth completed:', JSON.stringify(resp, null, 2));
-  return res.json(resp);                            // ONLY the response object!
+  // IMPORTANT: return the full wrapper payload (ctx), not just ctx.response
+  return res.json(ctx);                            
 });
 
 
