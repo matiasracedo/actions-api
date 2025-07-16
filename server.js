@@ -125,8 +125,9 @@ app.post('/action/external-post-auth', (req, res) => {
     { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
   );
 
-  // IMPORTANT: return the full wrapper payload (ctx), not just ctx.response
-  return res.json(ctx);                            
+  // IMPORTANT: For response manipulation, return only the response object
+  // The Go example shows: return the manipulated response, not the full context
+  return res.json(resp);                            
 });
 
 
