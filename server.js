@@ -61,8 +61,7 @@ app.post('/action/preuserinfo', (req, res) => {
   (org.metadata || []).forEach(addIfPrefixed);
 
   res.json({
-    append_claims,
-    append_log_claims: ['ATTRIBUTE_CLAIMS'],
+    append_claims
   });
 });
 
@@ -96,14 +95,15 @@ app.post('/action/external-post-auth', (req, res) => {
   if (!resp?.addHumanUser) return res.json(resp || {});
 
   const addUser = resp.addHumanUser;
-  const extInfo = resp.idpInformation?.[0]?.user ?? {};
+  console.log('Received external post-auth request addUser:', JSON.stringify(addUser));
+  const extInfo = resp.idpInformation?.rawInformation?.User ?? {};
   console.log('Received external post-auth request extInfo:', extInfo);
 
-  addUser.firstName         = extInfo.given_name      || addUser.firstName;
-  addUser.lastName          = extInfo.family_name     || addUser.lastName;
-  addUser.email             = extInfo.email           || addUser.email;
-  addUser.preferredUsername = extInfo.email           || addUser.preferredUsername;
-  addUser.emailVerified     = true;
+  addUser.profile.givenName    = extInfo.given_name      || addUser.profile.givenName;
+  addUser.profile.familyName   = extInfo.family_name     || addUser.profile.familyName ;
+  addUser.email.email          = extInfo.email           || addUser.email.email;
+  addUser.username             = extInfo.email           || addUser.username;
+  addUser.email.isVerified     = true;
 
   addUser.metadata ??= [];
   const pushMeta = (k, v) =>
