@@ -97,31 +97,15 @@ app.post('/action/external-post-auth', (req, res) => {
   const ctx  = req.body;
   const resp = ctx?.response;
 
-  if (!resp?.addHumanUser) {
-    console.log('No addHumanUser found, returning response as-is');
-    return res.status(200).json(resp || {});
+  if (!resp) {
+    console.error('No response object found in payload');
+    return res.status(400).json({ error: 'No response object found in payload' });
   }
 
-  // Create a deep copy to avoid mutating the original
-  const responseClone = JSON.parse(JSON.stringify(resp));
-  const addUser = responseClone.addHumanUser;
-  const extInfo = responseClone.idpInformation?.rawInformation ?? {};
+  console.log('Returning response unchanged to avoid COMMA error');
   
-  console.log('Processing addHumanUser with external info');
-
-  // Add metadata – values must be BASE-64 strings 
-  if (!addUser.metadata) addUser.metadata = [];
-  const b64 = v => Buffer.from(String(v)).toString('base64');
-  
-  addUser.metadata.push(
-    { key: 'okta_authentication_type', value: b64('SSO:OKTA:OIDC') },
-    { key: 'okta_groups',              value: b64(JSON.stringify(extInfo.groups ?? [])) }
-  );
-
-  console.log('Returning full response with metadata added');
-  
-  // Use the same simple pattern that works for postPasswordReset
-  res.status(200).json(responseClone);
+  // Use the exact same pattern as postPasswordReset that works
+  res.status(200).json(resp);
 });
 
 
