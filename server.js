@@ -26,6 +26,7 @@ async function setUserMetadata(userId, meta) {
     ? meta.map(({ key, value }) => ({ key, value: Buffer.from(value).toString('base64') }))
     : Object.entries(meta).map(([k, v]) => ({ key: k, value: Buffer.from(v).toString('base64') }));
 
+  console.log(`Setting metadata for user ${userId}:`, metadataArr);
   const resp = await fetch(
     `https://${ZITADEL_DOMAIN}/management/v1/users/${encodeURIComponent(userId)}/metadata/_bulk`,
     {
@@ -73,7 +74,7 @@ app.post('/action/preuserinfo', (req, res) => {
 app.post('/action/internal-post-auth', async (req, res) => {
   console.log('Received internal post-auth request:', req.body);
   try {
-    const userId = req.body.userID;
+    const userId = req.body.aggregateID;
     if (userId) {
       await setUserMetadata(userId, {
         okta_authentication_type: 'EMAIL_PASSWORD',
