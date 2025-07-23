@@ -27,7 +27,7 @@ async function setUserMetadata(userId, meta) {
     : Object.entries(meta).map(([k, v]) => ({ key: k, value: Buffer.from(v).toString('base64') }));
 
   const resp = await fetch(
-    `https://${ZITADEL_DOMAIN}/v2/users/${encodeURIComponent(userId)}/metadata`,
+    `https://${ZITADEL_DOMAIN}/management/v1/users/${encodeURIComponent(userId)}/metadata/_bulk`,
     {
       method: 'POST',
       headers: {
@@ -93,21 +93,31 @@ app.post('/action/internal-post-auth', async (req, res) => {
 // ---------------------------------------------------------------------------
 app.post('/action/external-post-auth', (req, res) => {
   console.log('Received external post-auth request:', JSON.stringify(req.body, null, 2));
-  
   const ctx  = req.body;
-  
-  // Try the same pattern as postPasswordReset - extract request instead of response
-  const { request } = ctx;
-  
-  if (!request) {
-    console.error('No request object found in payload');
-    return res.status(400).json({ error: 'No request object found in payload' });
-  }
+  const resp = ctx?.response;
 
-  console.log('Returning REQUEST unchanged to match postPasswordReset pattern');
-  
-  // Use the exact same pattern as postPasswordReset that works
-  res.status(200).json(request);
+  if (!resp?.addHumanUser) return res.json(resp || {});
+
+  const addUser = resp.addHumanUser;
+  console.log('Received external post-auth request addUser:', JSON.stringify(addUser));
+  const extInfo = resp.idpInformation?.rawInformation ?? {};
+  console.log('Received external post-auth request extInfo:', extInfo);
+
+  addUser.profile.givenName    = extInfo.given_name      || addUser.profile.givenName;
+  addUser.profile.familyName   = extInfo.family_name     || addUser.profile.familyName ;
+  addUser.email.email          = extInfo.email           || addUser.email.email;
+  addUser.username             = extInfo.email           || addUser.username;
+  addUser.email.isVerified     = true;
+
+  addUser.metadata ??= [];
+  const pushMeta = (k, v) =>
+    addUser.metadata.push({ key: k, value: Buffer.from(v).toString('base64') });
+
+  pushMeta('okta_authentication_type', 'SSO:OKTA:OIDC');
+  pushMeta('okta_groups', JSON.stringify(extInfo.groups ?? []));
+
+  console.log('Ending external post-auth flow for user', addUser.username);
+  res.json(resp);
 });
 
 
