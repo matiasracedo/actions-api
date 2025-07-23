@@ -1,10 +1,26 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const crypto = require('crypto');
 const { uniqueSession } = require('./sessionManager');
 require('dotenv').config();
 
 const app = express();
 const PORT = 5001;
+
+// Middleware to capture raw body for signature validation
+app.use('/action', (req, res, next) => {
+  let rawBody = '';
+  req.setEncoding('utf8');
+  
+  req.on('data', (chunk) => {
+    rawBody += chunk;
+  });
+  
+  req.on('end', () => {
+    req.rawBody = rawBody;
+    next();
+  });
+});
 
 app.use(bodyParser.json());
 
@@ -13,6 +29,55 @@ app.use(bodyParser.json());
 // ---------------------------------------------------------------------------
 const ZITADEL_DOMAIN = process.env.ZITADEL_DOMAIN;   // e.g. "auth.example.com"
 const accessToken  = process.env.ACCESS_TOKEN;   // PAT or service-user access-token
+
+/**
+ * Validates Zitadel webhook signature
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {string} signingKey - The signing key for this specific endpoint
+ * @returns {boolean} - Returns true if validation passes, sends error response and returns false if validation fails
+ */
+function validateZitadelSignature(req, res, signingKey) {
+  // Get the webhook signature
+  const signatureHeader = req.headers['zitadel-signature'];
+  if (!signatureHeader) {
+    console.error("Missing signature");
+    res.status(400).send('Missing signature');
+    return false;
+  }
+
+  // Validate the webhook signature
+  const elements = signatureHeader.split(',');
+  const timestampElement = elements.find(e => e.startsWith('t='));
+  const signatureElement = elements.find(e => e.startsWith('v1='));
+  
+  if (!timestampElement || !signatureElement) {
+    console.error("Invalid signature format");
+    res.status(400).send('Invalid signature format');
+    return false;
+  }
+  
+  const timestamp = timestampElement.split('=')[1];
+  const signature = signatureElement.split('=')[1];
+  const signedPayload = `${timestamp}.${req.rawBody}`;
+  const hmac = crypto.createHmac('sha256', signingKey)
+    .update(signedPayload)
+    .digest('hex');
+
+  const isValid = crypto.timingSafeEqual(
+    Buffer.from(hmac),
+    Buffer.from(signature)
+  );
+
+  if (!isValid) {
+    console.error("Invalid signature");
+    res.status(400).send('Invalid signature');
+    return false;
+  }
+
+  console.log("Signature validation successful");
+  return true;
+}
 
 /**
  * Write one or many metadata entries for a user in a single call.
@@ -49,6 +114,12 @@ async function setUserMetadata(userId, meta) {
 // 1) Complement token – preuserinfo  (sync restCall)
 // ---------------------------------------------------------------------------
 app.post('/action/preuserinfo', (req, res) => {
+  // Validate signature first
+  const PREUSERINFO_SIGNING_KEY = process.env.PREUSERINFO_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, PREUSERINFO_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
+
   console.log('Received preuserinfo request:', req.body);
   const { user_metadata = [], org = {} } = req.body;
   const append_claims = [];
@@ -72,6 +143,12 @@ app.post('/action/preuserinfo', (req, res) => {
 // 2) Internal e-mail/password login –  post auth  (sync restWebhook)
 // ---------------------------------------------------------------------------
 app.post('/action/internal-post-auth', async (req, res) => {
+  // Validate signature first
+  const INTERNAL_POST_AUTH_SIGNING_KEY = process.env.INTERNAL_POST_AUTH_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, INTERNAL_POST_AUTH_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
+
   console.log('Received internal post-auth request:', req.body);
   try {
     const userId = req.body.aggregateID;
@@ -93,6 +170,12 @@ app.post('/action/internal-post-auth', async (req, res) => {
 // 3) Okta OIDC – post auth  (sync restCall on RetrieveIdentityProviderIntent)
 // ---------------------------------------------------------------------------
 app.post('/action/external-post-auth', (req, res) => {
+  // Validate signature first
+  const EXTERNAL_POST_AUTH_SIGNING_KEY = process.env.EXTERNAL_POST_AUTH_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, EXTERNAL_POST_AUTH_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
+
   console.log('Received external post-auth request:', JSON.stringify(req.body, null, 2));
   const ctx  = req.body;
   const resp = ctx?.response;
@@ -123,6 +206,11 @@ app.post('/action/external-post-auth', (req, res) => {
 
 
 app.post('/action/uniqueSession', async (req, res) => {
+  // Validate signature first
+  const UNIQUE_SESSION_SIGNING_KEY = process.env.UNIQUE_SESSION_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, UNIQUE_SESSION_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
 
   const { userID } = req.body;
 
@@ -140,22 +228,35 @@ app.post('/action/uniqueSession', async (req, res) => {
   }
 }); 
 
+/*
 app.post('/action/test', async (req, res) => {
+  // Validate signature first
+  const TEST_SIGNING_KEY = process.env.TEST_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, TEST_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
 
-    let claims = {
-        append_claims: [
-          {
-            key: "custom_claim",
-            value: "Added from Action v2"
-          }
-        ]
-      };
-    console.log('Received request:', req.body);
-    res.status(200).json(claims);
-  }); 
+  let claims = {
+    append_claims: [
+      {
+        key: "custom_claim",
+        value: "Added from Action v2"
+      }
+    ]
+  };
+  console.log('Received request:', req.body);
+  res.status(200).json(claims);
+}); 
+*/
 
-app.post('/action/postPasswordReset', async (req, res) => {
-  console.log('=== POST PASSWORD RESET ACTION ===');
+app.post('/action/test', async (req, res) => {
+  // Validate signature first
+  const POST_PASSWORD_RESET_SIGNING_KEY = process.env.POST_PASSWORD_RESET_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, POST_PASSWORD_RESET_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
+
+  console.log('=== TEST ACTION ===');
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
   console.log('=====================================');
   
