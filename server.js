@@ -7,22 +7,29 @@ require('dotenv').config();
 const app = express();
 const PORT = 5001;
 
-// Middleware to capture raw body for signature validation
-app.use('/action', (req, res, next) => {
-  let rawBody = '';
-  req.setEncoding('utf8');
+// Custom middleware to capture raw body AND parse JSON for signature validation
+app.use('/action', express.raw({type: 'application/json'}), (req, res, next) => {
+  // Store the raw body for signature validation
+  req.rawBody = req.body.toString('utf8');
   
-  req.on('data', (chunk) => {
-    rawBody += chunk;
-  });
+  // Parse the JSON manually and attach it to req.body
+  try {
+    req.body = JSON.parse(req.rawBody);
+  } catch (error) {
+    console.error('JSON parsing error:', error);
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
   
-  req.on('end', () => {
-    req.rawBody = rawBody;
-    next();
-  });
+  next();
 });
 
-app.use(bodyParser.json());
+// Use bodyParser.json() for non-action routes
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/action')) {
+    return bodyParser.json()(req, res, next);
+  }
+  next();
+});
 
 // ---------------------------------------------------------------------------
 // 0)  Helpers
