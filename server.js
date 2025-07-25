@@ -207,7 +207,7 @@ app.post('/action/external-post-auth', (req, res) => {
   pushMeta('okta_authentication_type', 'SSO:OKTA:OIDC');
   pushMeta('okta_groups', JSON.stringify(extInfo.groups ?? []));
 
-  console.log('Ending external post-auth flow for user', addUser.username);
+  console.log('Ending external post-auth flow: ', JSON.stringify(resp, null, 2));
   res.json(resp);
 });
 
