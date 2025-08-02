@@ -117,6 +117,12 @@ async function setUserMetadata(userId, meta) {
   }
 }
 
+function redactToken(s, keep = 8) {
+  if (!s) return s;
+  const head = s.slice(0, keep);
+  return `${head}...<redacted>`;
+}
+
 // ---------------------------------------------------------------------------
 // 1) Complement token – preuserinfo  (sync restCall)
 // ---------------------------------------------------------------------------
@@ -280,56 +286,91 @@ app.post('/action/test', async (req, res) => {
   res.status(200).json(response);
 });
 
+// ---------------------------------------------------------------------------
+// 4) JWT IdP flow – start auth (sync restCall)
+// ---------------------------------------------------------------------------
+// This is the entry point for the JWT IdP flow, which starts the authentication process
+// by redirecting to ZITADEL's /idps/jwt endpoint with the necessary parameters
+// This route is used to initiate the JWT IdP flow from ZITADEL to your application
+// It expects the ID_TOKEN to be set in the environment variables
+// and the ZITADEL_DOMAIN to be configured correctly
+// The request should contain the authRequestID and userAgentID as query parameters
+// The response will redirect to the ZITADEL /idps/jwt endpoint with the necessary
+// parameters and the ID_TOKEN in the Authorization header or a custom header
 app.get('/auth/start', async (req, res) => {
-  console.log('JWT IdP flow started');
-  console.log('Request Query:', JSON.stringify(req.query, null, 2));  
-  console.log('Request Headers:', JSON.stringify(req.headers, null, 2));
-
   const idToken = process.env.ID_TOKEN;
+  const headerName = (process.env.ZITADEL_IDP_HEADER_NAME || 'Authorization').toLowerCase();
+  const zitadelDomain = process.env.ZITADEL_DOMAIN || 'matias-auth-bkeog4.us1.zitadel.cloud';
+
+  // Basic input logs (from ZITADEL -> your endpoint)
+  console.log('--- JWT IdP flow: incoming redirect from ZITADEL ---');
+  console.log('originalUrl:', req.originalUrl);
+  console.log('query keys:', Object.keys(req.query));
+  console.log('authRequestID present?', 'authRequestID' in req.query);
+  console.log('userAgentID present?', 'userAgentID' in req.query);
+  console.log('userAgentID length:', (req.query.userAgentID || '').length);
+
+  if (!('authRequestID' in req.query) || !('userAgentID' in req.query)) {
+    console.error('Missing required query params from ZITADEL redirect.');
+    return res.status(400).send('Missing authRequestID or userAgentID');
+    // If this happens, check the "JWT Endpoint" URL in the IdP config exactly matches this route.
+  }
+  if (!idToken) {
+    console.error('ID_TOKEN env var is missing');
+    return res.status(500).send('Server misconfiguration: missing ID_TOKEN');
+  }
+
+  // Build upstream URL with the *exact* query you received
+  const upstream = new URL(`https://${zitadelDomain}/idps/jwt`);
+  for (const [k, v] of Object.entries(req.query)) upstream.searchParams.append(k, String(v));
+
+  // Prepare headers exactly as configured
+  const headers = {};
+  if (headerName === 'authorization') {
+    headers['authorization'] = `Bearer ${idToken}`;
+  } else {
+    headers[headerName] = idToken; // raw token for custom header
+  }
+
+  // Debug what we're about to send (without leaking secrets)
+  console.log('--- Forwarding to ZITADEL /idps/jwt ---');
+  console.log('upstream URL:', upstream.toString());
+  console.log('header name:', Object.keys(headers)[0]);
+  console.log('header value (redacted):', redactToken(Object.values(headers)[0]));
 
   try {
-    // Forward the request to Zitadel's JWT IdP endpoint
-    const zitadelUrl = 'https://matias-auth-bkeog4.us1.zitadel.cloud/idps/jwt';
-    
-    // Create URL with query parameters
-    const url = new URL(zitadelUrl);
-    Object.keys(req.query).forEach(key => {
-      url.searchParams.append(key, req.query[key]);
-    });
-    
-    console.log('Forwarding to Zitadel URL:', url.toString());
-    
-    const response = await fetch(url.toString(), {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s safety
+
+    const r = await fetch(upstream.toString(), {
       method: 'POST',
-      headers: {
-        'x-custom-tkn': `${idToken}`,
-        'Content-Type': 'application/json'
-      }
+      headers,           // NOTE: no Content-Type; no body
+      redirect: 'manual',
+      signal: controller.signal,
     });
-    
-    console.log('Zitadel response status:', response.status);
-    
-    if (response.ok) {
-      // If Zitadel responds with a redirect or success, forward the response
-      const responseData = await response.text();
-      console.log('Zitadel response:', responseData);
-      
-      // Check if it's a redirect response
-      if (response.headers.get('location')) {
-        res.redirect(response.headers.get('location'));
-      } else {
-        res.status(response.status).send(responseData);
-      }
-    } else {
-      console.error('Zitadel error response:', await response.text());
-      res.status(500).json({ error: 'Failed to authenticate with Zitadel' });
+    clearTimeout(timeout);
+
+    const loc = r.headers.get('location') || '';
+    let bodyText = '';
+    try { bodyText = await r.text(); } catch { /* ignore */ }
+
+    // Response diagnostics
+    console.log('--- ZITADEL response ---');
+    console.log('status:', r.status);
+    if (loc) console.log('location:', loc);
+    if (bodyText) console.log('body (first 500 chars):', bodyText.slice(0, 500));
+
+    // Forward behavior
+    if (r.status >= 300 && r.status < 400 && loc) {
+      return res.redirect(loc);
     }
-    
-  } catch (error) {
-    console.error('Error forwarding to Zitadel:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(r.status).send(bodyText || '');
+  } catch (err) {
+    console.error('Error forwarding to ZITADEL /idps/jwt:', err);
+    return res.status(502).send('Upstream error talking to ZITADEL');
   }
 });
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
