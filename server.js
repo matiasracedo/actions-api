@@ -289,20 +289,11 @@ app.post('/action/test', async (req, res) => {
 // ---------------------------------------------------------------------------
 // 4) JWT IdP flow – start auth (sync restCall)
 // ---------------------------------------------------------------------------
-// This is the entry point for the JWT IdP flow, which starts the authentication process
-// by redirecting to ZITADEL's /idps/jwt endpoint with the necessary parameters
-// This route is used to initiate the JWT IdP flow from ZITADEL to your application
-// It expects the ID_TOKEN to be set in the environment variables
-// and the ZITADEL_DOMAIN to be configured correctly
-// The request should contain the authRequestID and userAgentID as query parameters
-// The response will redirect to the ZITADEL /idps/jwt endpoint with the necessary
-// parameters and the ID_TOKEN in the Authorization header or a custom header
-app.get('/auth/start', async (req, res) => {
-  const idToken = process.env.ID_TOKEN;
-  const headerName = (process.env.ZITADEL_IDP_HEADER_NAME || 'Authorization').toLowerCase();
+app.get('/auth/start', (req, res) => {
   const zitadelDomain = process.env.ZITADEL_DOMAIN || 'matias-auth-bkeog4.us1.zitadel.cloud';
+  const headerName = (process.env.ZITADEL_IDP_HEADER_NAME || 'Authorization').toLowerCase();
+  const idToken = process.env.ID_TOKEN;
 
-  // Basic input logs (from ZITADEL -> your endpoint)
   console.log('--- JWT IdP flow: incoming redirect from ZITADEL ---');
   console.log('originalUrl:', req.originalUrl);
   console.log('query keys:', Object.keys(req.query));
@@ -310,65 +301,81 @@ app.get('/auth/start', async (req, res) => {
   console.log('userAgentID present?', 'userAgentID' in req.query);
   console.log('userAgentID length:', (req.query.userAgentID || '').length);
 
-  if (!('authRequestID' in req.query) || !('userAgentID' in req.query)) {
-    console.error('Missing required query params from ZITADEL redirect.');
+  const { authRequestID, userAgentID } = req.query;
+  if (!authRequestID || !userAgentID) {
     return res.status(400).send('Missing authRequestID or userAgentID');
-    // If this happens, check the "JWT Endpoint" URL in the IdP config exactly matches this route.
   }
   if (!idToken) {
-    console.error('ID_TOKEN env var is missing');
+    console.error('Missing ID_TOKEN env var');
     return res.status(500).send('Server misconfiguration: missing ID_TOKEN');
   }
 
-  // Build upstream URL with the *exact* query you received
-  const upstream = new URL(`https://${zitadelDomain}/idps/jwt`);
-  for (const [k, v] of Object.entries(req.query)) upstream.searchParams.append(k, String(v));
+  // Build the exact upstream URL we’ll POST to from the browser
+  const upstream = `https://${zitadelDomain}/idps/jwt?authRequestID=${encodeURIComponent(
+    String(authRequestID)
+  )}&userAgentID=${encodeURIComponent(String(userAgentID))}`;
 
-  // Prepare headers exactly as configured
-  const headers = {};
-  if (headerName === 'authorization') {
-    headers['authorization'] = `Bearer ${idToken}`;
-  } else {
-    headers[headerName] = idToken; // raw token for custom header
-  }
+  const headerValue =
+    headerName === 'authorization' ? `Bearer ${idToken}` : idToken;
 
-  // Debug what we're about to send (without leaking secrets)
-  console.log('--- Forwarding to ZITADEL /idps/jwt ---');
-  console.log('upstream URL:', upstream.toString());
-  console.log('header name:', Object.keys(headers)[0]);
-  console.log('header value (redacted):', redactToken(Object.values(headers)[0]));
+  console.log('--- Browser will POST to ZITADEL /idps/jwt ---');
+  console.log('upstream URL:', upstream);
+  console.log('header name:', headerName);
+  console.log('header value (redacted):', redact(headerValue));
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10s safety
+  // Serve a minimal HTML page that performs the POST from the *browser*
+  // so the ZITADEL cookies (user-agent context) are included.
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Signing in…</title>
+  <!-- Allow cross-origin fetch to your ZITADEL domain -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'unsafe-inline'; connect-src https://${zitadelDomain};">
+  <meta name="referrer" content="no-referrer" />
+</head>
+<body>
+  <p>Signing you in…</p>
+  <script>
+    (async () => {
+      const upstream = ${JSON.stringify(upstream)};
+      const headerName = ${JSON.stringify(headerName)};
+      const headerValue = ${JSON.stringify(headerValue)};
 
-    const r = await fetch(upstream.toString(), {
-      method: 'POST',
-      headers,           // NOTE: no Content-Type; no body
-      redirect: 'manual',
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+      try {
+        // Do not use credentials:'omit' — we need browser cookies.
+        const r = await fetch(upstream, {
+          method: 'POST',
+          headers: { [headerName]: headerValue },
+          redirect: 'follow',
+          credentials: 'include'
+        });
 
-    const loc = r.headers.get('location') || '';
-    let bodyText = '';
-    try { bodyText = await r.text(); } catch { /* ignore */ }
+        // If ZITADEL redirected, fetch() will usually follow and expose the final URL.
+        if (r.redirected) {
+          window.location.replace(r.url);
+          return;
+        }
 
-    // Response diagnostics
-    console.log('--- ZITADEL response ---');
-    console.log('status:', r.status);
-    if (loc) console.log('location:', loc);
-    if (bodyText) console.log('body (first 500 chars):', bodyText.slice(0, 500));
+        // If not redirected, try to use the final URL anyway.
+        if (r.url) {
+          window.location.replace(r.url);
+          return;
+        }
 
-    // Forward behavior
-    if (r.status >= 300 && r.status < 400 && loc) {
-      return res.redirect(loc);
-    }
-    return res.status(r.status).send(bodyText || '');
-  } catch (err) {
-    console.error('Error forwarding to ZITADEL /idps/jwt:', err);
-    return res.status(502).send('Upstream error talking to ZITADEL');
-  }
+        // Fallback: show response text (useful for debugging)
+        const text = await r.text();
+        document.body.innerText = text || 'Finished, but no redirect detected.';
+      } catch (e) {
+        document.body.innerText = 'Error contacting ZITADEL: ' + (e && e.message ? e.message : e);
+      }
+    })();
+  </script>
+</body>
+</html>`);
 });
 
 
