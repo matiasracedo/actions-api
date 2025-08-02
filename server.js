@@ -321,7 +321,7 @@ app.get('/auth/start', (req, res) => {
   console.log('--- Browser will POST to ZITADEL /idps/jwt ---');
   console.log('upstream URL:', upstream);
   console.log('header name:', headerName);
-  console.log('header value (redacted):', redact(headerValue));
+  console.log('header value (redacted):', redactToken(headerValue));
 
   // Serve a minimal HTML page that performs the POST from the *browser*
   // so the ZITADEL cookies (user-agent context) are included.
