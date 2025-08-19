@@ -245,7 +245,7 @@ app.post('/action/uniqueSession', async (req, res) => {
 app.post('/action/test', async (req, res) => {
   // Validate signature first
   const TEST_SIGNING_KEY = process.env.TEST_CLAIMS_SIGNING_KEY;
-  if (!validateZitadelSignature(req, res, TEST_CLAIMS_SIGNING_KEY)) {
+  if (!validateZitadelSignature(req, res, TEST_SIGNING_KEY)) {
     return; // Response already sent by validation function
   }
 
