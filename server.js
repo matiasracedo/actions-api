@@ -241,7 +241,7 @@ app.post('/action/uniqueSession', async (req, res) => {
   }
 }); 
 
-/*
+
 app.post('/action/test', async (req, res) => {
   // Validate signature first
   const TEST_SIGNING_KEY = process.env.TEST_SIGNING_KEY;
@@ -252,16 +252,24 @@ app.post('/action/test', async (req, res) => {
   let claims = {
     append_claims: [
       {
-        key: "custom_claim",
-        value: "Added from Action v2"
-      }
+        key: "companyId",
+        value: "COMPANY123"
+      },
+      {
+        key: "personId",
+        value: "PERSON123"
+      },
+      {
+        key: "userId",
+        value: "USER123"
+      }  
     ]
   };
   console.log('Received request:', req.body);
   res.status(200).json(claims);
 }); 
-*/
 
+/*
 app.post('/action/test', async (req, res) => {
   // Validate signature first
   const TEST_SIGNING_KEY = process.env.TEST_SIGNING_KEY;
@@ -285,6 +293,7 @@ app.post('/action/test', async (req, res) => {
   // Return the response object back to Zitadel (unchanged for logging purposes)
   res.status(200).json(response);
 });
+*/
 
 // ---------------------------------------------------------------------------
 // 4) JWT IdP flow – start auth (sync restCall)
