@@ -265,8 +265,34 @@ app.post('/action/test', async (req, res) => {
       }  
     ]
   };
+  let response = {
+  set_user_metadata: [
+    {
+      key: "action_metadata_key",
+      value: "YWN0aW9uIG1ldGFkYXRhIHZhbHVl"
+    }
+  ],
+  append_claims: [
+      {
+        key: "companyId",
+        value: "COMPANY123"
+      },
+      {
+        key: "personId",
+        value: "PERSON123"
+      },
+      {
+        key: "userId",
+        value: "USER123"
+      }  
+    ],
+  append_log_claims: [
+    "Log to be appended to the log claim on the token"
+  ]
+}
+  
   console.log('Received request:', req.body);
-  res.status(200).json(claims);
+  res.status(200).json(response || claims);
 }); 
 
 /*
