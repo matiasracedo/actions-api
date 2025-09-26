@@ -242,7 +242,7 @@ app.post('/action/uniqueSession', async (req, res) => {
 }); 
 
 
-app.post('/action/test', async (req, res) => {
+app.post('/action/testClaims', async (req, res) => {
   // Validate signature first
   const TEST_SIGNING_KEY = process.env.TEST_CLAIMS_SIGNING_KEY;
   if (!validateZitadelSignature(req, res, TEST_SIGNING_KEY)) {
@@ -295,7 +295,7 @@ app.post('/action/test', async (req, res) => {
   res.status(200).json(response || claims);
 }); 
 
-/*
+
 app.post('/action/test', async (req, res) => {
   // Validate signature first
   const TEST_SIGNING_KEY = process.env.TEST_SIGNING_KEY;
@@ -319,7 +319,7 @@ app.post('/action/test', async (req, res) => {
   // Return the response object back to Zitadel (unchanged for logging purposes)
   res.status(200).json(response);
 });
-*/
+
 
 // ---------------------------------------------------------------------------
 // 4) JWT IdP flow – start auth (sync restCall)
