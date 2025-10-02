@@ -2,7 +2,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const { uniqueSession } = require('./sessionManager');
-const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
@@ -298,8 +297,8 @@ app.post('/action/testClaims', async (req, res) => {
   };
 
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
+  //res.json(claims);
   res.json(error);
-  //res.status(200).json(error);
 }); 
 
 
