@@ -298,7 +298,7 @@ app.post('/action/testClaims', async (req, res) => {
 
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
   //res.json(claims);
-  res.status(403).json(error);
+  res.json(error);
 }); 
 
 
