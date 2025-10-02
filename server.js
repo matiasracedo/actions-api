@@ -292,13 +292,13 @@ app.post('/action/testClaims', async (req, res) => {
   ]
   };
   let error = {
-    "forwardedStatusCode": 401,
+    "forwardedStatusCode": 403,
     "forwardedErrorMessage": "You are not authorized to access this application."
   };
 
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
   //res.json(claims);
-  res.json(error);
+  res.status(403).json(error);
 }); 
 
 
