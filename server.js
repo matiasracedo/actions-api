@@ -2,10 +2,12 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const { uniqueSession } = require('./sessionManager');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 const PORT = 5001;
+
 
 // Custom middleware to capture raw body AND parse JSON for signature validation
 app.use('/action', express.raw({type: 'application/json'}), (req, res, next) => {
@@ -289,16 +291,21 @@ app.post('/action/testClaims', async (req, res) => {
   append_log_claims: [
     "Log to be appended to the log claim on the token"
   ]
-}
-  
-  console.log('Received request:', req.body);
-  res.status(200).json(response || claims);
+  };
+  let error = {
+    "forwardedStatusCode": 401,
+    "forwardedErrorMessage": "You are not authorized to access this application."
+  };
+
+  console.log('Request Body:', JSON.stringify(req.body, null, 2));
+  res.json(error);
+  //res.status(200).json(error);
 }); 
 
 
 app.post('/action/test', async (req, res) => {
   // Validate signature first
-  const TEST_SIGNING_KEY = process.env.TEST_SIGNING_KEY;
+  const TEST_SIGNING_KtestEY = process.env.TEST_SIGNING_KEY;
   if (!validateZitadelSignature(req, res, TEST_SIGNING_KEY)) {
     return; // Response already sent by validation function
   }
