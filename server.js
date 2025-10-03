@@ -304,7 +304,7 @@ app.post('/action/testClaims', async (req, res) => {
 
 app.post('/action/test', async (req, res) => {
   // Validate signature first
-  const TEST_SIGNING_KtestEY = process.env.TEST_SIGNING_KEY;
+  const TEST_SIGNING_KEY = process.env.TEST_SIGNING_KEY;
   if (!validateZitadelSignature(req, res, TEST_SIGNING_KEY)) {
     return; // Response already sent by validation function
   }
