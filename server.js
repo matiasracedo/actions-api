@@ -421,12 +421,13 @@ app.get('/auth/start', (req, res) => {
 // --- Mock "Legacy" directory (replace with real calls later) ---
 const LEGACY_DB = {
   "non-existing@matis-team.us1.zitadel.cloud": {
+    userId: "db-163840776835432345",
     username: "non-existing",
-    email: "non-existing@gmail.com",
     givenName: "Legacy",
     familyName: "User",
     displayName: "Legacy User",
     preferredLanguage: "en",
+    email: "non-existing@gmail.com",
     password: "Password1!"
   }
 };
@@ -450,28 +451,28 @@ async function zFetch(path, init = {}) {
 
 async function createUserFromLegacy(legacy) {
   const body = {
+    organizationID: process.env.ZITADEL_ORG_ID,
     username: legacy.username,
-    profile: {
+    human: {
+      profile: {
       givenName: legacy.givenName,
       familyName: legacy.familyName,
       displayName: legacy.displayName,
       preferredLanguage: legacy.preferredLanguage || "en"
-    },
+      },
     email: {
       email: legacy.email,
       isVerified: true
-    },
-    metadata: [
-      { key: "migratedFromLegacy", value: Buffer.from("true").toString("base64") }
-    ]
+      }
+    }
   };
-  const resp = await zFetch('/v2/users/human', { method: 'POST', body: JSON.stringify(body) });
+  const resp = await zFetch('/v2/users/new', { method: 'POST', body: JSON.stringify(body) });
   return resp.userId;
 }
 
 async function setUserPassword(userId, password) {
-  const body = { password: { password, changeRequired: false } };
-  await zFetch(`/v2/users/${userId}/password`, { method: 'POST', body: JSON.stringify(body) });
+  const body = { human: { password: { password, changeRequired: false } } };
+  await zFetch(`/v2/users/${userId}`, { method: 'POST', body: JSON.stringify(body) });
 }
 
 // --- Response Action: ListUsers ---
