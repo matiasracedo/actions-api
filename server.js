@@ -326,7 +326,6 @@ app.post('/action/test', async (req, res) => {
   res.status(200).json(response);
 });
 
-
 // ---------------------------------------------------------------------------
 // 4) JWT IdP flow – start auth (sync restCall)
 // ---------------------------------------------------------------------------
@@ -417,6 +416,149 @@ app.get('/auth/start', (req, res) => {
   </script>
 </body>
 </html>`);
+});
+
+// --- Mock "Legacy" directory (replace with real calls later) ---
+const LEGACY_DB = {
+  "non-existing@matis-team.us1.zitadel.cloud": {
+    username: "non-existing",
+    email: "non-existing@matis-team.us1.zitadel.cloud",
+    givenName: "Legacy",
+    familyName: "User",
+    displayName: "Legacy User",
+    preferredLanguage: "en",
+    password: "Password1!"
+  }
+};
+
+// --- Helpers ---
+async function zFetch(path, init = {}) {
+  const res = await fetch(`https://${ZITADEL_DOMAIN}${path}`, {
+    ...init,
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      ...(init.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Zitadel API ${path} failed: ${res.status} ${res.statusText} ${txt}`);
+  }
+  return res.json();
+}
+
+async function createUserFromLegacy(legacy) {
+  const body = {
+    username: legacy.username,
+    profile: {
+      givenName: legacy.givenName,
+      familyName: legacy.familyName,
+      displayName: legacy.displayName,
+      preferredLanguage: legacy.preferredLanguage || "en"
+    },
+    email: {
+      email: legacy.email,
+      isVerified: true
+    },
+    metadata: [
+      { key: "migratedFromLegacy", value: Buffer.from("true").toString("base64") }
+    ]
+  };
+  const resp = await zFetch('/v2/users/human', { method: 'POST', body: JSON.stringify(body) });
+  return resp.userId;
+}
+
+async function setUserPassword(userId, password) {
+  const body = { password: { password, changeRequired: false } };
+  await zFetch(`/v2/users/${userId}/password`, { method: 'POST', body: JSON.stringify(body) });
+}
+
+// --- Response Action: ListUsers ---
+app.post('/actions/list-users', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const resp = body.response || {};
+    const total = Number((resp.details && resp.details.totalResult) || 0);
+    if (total > 0) return res.json(resp);
+
+    const q = (((body.request || {}).queries || [])[0] || {}).loginNameQuery;
+    const loginName = q && q.loginName ? String(q.loginName) : null;
+
+    if (!loginName || !LEGACY_DB[loginName]) {
+      return res.json(resp);
+    }
+
+    const userId = await createUserFromLegacy(LEGACY_DB[loginName]);
+    const userObj = await zFetch(`/v2/users/${userId}`, { method: 'GET' });
+
+    const manipulated = {
+      details: {
+        totalResult: "1",
+        timestamp: new Date().toISOString()
+      },
+      result: [
+        {
+          userId: userObj.userId,
+          details: userObj.details,
+          state: userObj.state || "USER_STATE_ACTIVE",
+          username: userObj.username,
+          loginNames: userObj.loginNames || [loginName],
+          preferredLoginName: userObj.preferredLoginName || loginName,
+          human: userObj.human
+        }
+      ]
+    };
+
+    return res.json(manipulated);
+  } catch (e) {
+    console.error('list-users action error:', e);
+    return res.status(200).json(req.body?.response || {});
+  }
+});
+
+// --- Response Action: SetSession ---
+app.post('/actions/set-session', async (req, res) => {
+  try {
+    const { request, response } = req.body || {};
+    const pw = request?.checks?.password?.password;
+    if (!pw) return res.json(response || {});
+
+    const legacyLoginName = Object.keys(LEGACY_DB)[0];
+    const legacy = LEGACY_DB[legacyLoginName];
+
+    if (pw !== legacy.password) {
+      return res.status(400).json({
+        error: { message: 'invalid_credentials' }
+      });
+    }
+
+    const search = await zFetch('/v2/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        queries: [
+          { loginNameQuery: { loginName: legacyLoginName, method: "TEXT_QUERY_METHOD_EQUALS_IGNORE_CASE" } }
+        ],
+        query: { limit: 1 }
+      })
+    });
+
+    const userId = search?.result?.[0]?.userId;
+    if (userId) {
+      await setUserPassword(userId, pw);
+      await zFetch(`/v2/users/${userId}/metadata`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          metadata: [{ key: "migratedFromLegacy", value: Buffer.from("true").toString("base64") }]
+        })
+      });
+    }
+
+    return res.json(response || {});
+  } catch (e) {
+    console.error('set-session action error:', e);
+    return res.status(200).json(req.body?.response || {});
+  }
 });
 
 
