@@ -466,7 +466,7 @@ async function createUserFromLegacy(legacy) {
       isVerified: true
       },
     password: {
-      password: "RANDOM_PASSWORD123!",
+      password: "RandomPassword123!",
       changeRequired: false
     }
     }
@@ -557,6 +557,7 @@ app.post('/action/set-session', async (req, res) => {
     });
 
     const userId = search?.session?.factors?.user?.id;
+    console.log('set-session action, found userId from session:', userId);
     if (userId) {
       await setUserPassword(userId, pw);
       await zFetch(`/v2/users/${userId}/metadata`, {
