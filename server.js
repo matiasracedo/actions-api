@@ -422,7 +422,7 @@ app.get('/auth/start', (req, res) => {
 const LEGACY_DB = {
   "non-existing@matis-team.us1.zitadel.cloud": {
     username: "non-existing",
-    email: "non-existing@matis-team.us1.zitadel.cloud",
+    email: "non-existing@gmail.com",
     givenName: "Legacy",
     familyName: "User",
     displayName: "Legacy User",
@@ -480,17 +480,22 @@ app.post('/actions/list-users', async (req, res) => {
     const body = req.body || {};
     const resp = body.response || {};
     const total = Number((resp.details && resp.details.totalResult) || 0);
+    console.log('list-users action, totalResult:', total);
     if (total > 0) return res.json(resp);
 
     const q = (((body.request || {}).queries || [])[0] || {}).loginNameQuery;
     const loginName = q && q.loginName ? String(q.loginName) : null;
+    console.log('list-users action, loginName query:', loginName);
 
     if (!loginName || !LEGACY_DB[loginName]) {
+      console.log('No legacy user found for loginName:', loginName);
       return res.json(resp);
     }
 
     const userId = await createUserFromLegacy(LEGACY_DB[loginName]);
+    console.log('Created new user in Zitadel with userId:', userId);
     const userObj = await zFetch(`/v2/users/${userId}`, { method: 'GET' });
+    console.log('Fetched user object:', userObj);
 
     const manipulated = {
       details: {
@@ -510,6 +515,7 @@ app.post('/actions/list-users', async (req, res) => {
       ]
     };
 
+    console.log('Returning manipulated list-users response:', JSON.stringify(manipulated, null, 2));
     return res.json(manipulated);
   } catch (e) {
     console.error('list-users action error:', e);
