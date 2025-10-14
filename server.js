@@ -452,6 +452,7 @@ async function zFetch(path, init = {}) {
 async function createUserFromLegacy(legacy) {
   const body = {
     organizationID: process.env.ZITADEL_ORG_ID,
+    userId: legacy.userId,
     username: legacy.username,
     human: {
       profile: {
@@ -496,7 +497,8 @@ app.post('/action/list-users', async (req, res) => {
 
     const userId = await createUserFromLegacy(LEGACY_DB[loginName]);
     console.log('Created new user in Zitadel with userId:', userId);
-    const userObj = await zFetch(`/v2/users/${userId}`, { method: 'GET' });
+    const userSearch = await zFetch(`/v2/users/${userId}`, { method: 'GET' });
+    const userObj = userSearch.user || {};
     console.log('Fetched user object:', userObj);
 
     const manipulated = {
