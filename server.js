@@ -478,6 +478,7 @@ async function setUserPassword(userId, password) {
 app.post('/actions/list-users', async (req, res) => {
   try {
     const body = req.body || {};
+    console.log('list-users action, request body:', JSON.stringify(body, null, 2));
     const resp = body.response || {};
     const total = Number((resp.details && resp.details.totalResult) || 0);
     console.log('list-users action, totalResult:', total);
