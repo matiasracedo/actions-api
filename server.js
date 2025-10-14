@@ -451,7 +451,7 @@ async function zFetch(path, init = {}) {
 
 async function createUserFromLegacy(legacy) {
   const body = {
-    organizationID: process.env.ZITADEL_ORG_ID,
+    organizationId: process.env.ZITADEL_ORG_ID,
     userId: legacy.userId,
     username: legacy.username,
     human: {
