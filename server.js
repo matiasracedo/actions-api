@@ -475,7 +475,7 @@ async function setUserPassword(userId, password) {
 }
 
 // --- Response Action: ListUsers ---
-app.post('/actions/list-users', async (req, res) => {
+app.post('/action/list-users', async (req, res) => {
   try {
     const body = req.body || {};
     console.log('list-users action, request body:', JSON.stringify(body, null, 2));
@@ -525,7 +525,7 @@ app.post('/actions/list-users', async (req, res) => {
 });
 
 // --- Response Action: SetSession ---
-app.post('/actions/set-session', async (req, res) => {
+app.post('/action/set-session', async (req, res) => {
   try {
     const { request, response } = req.body || {};
     const pw = request?.checks?.password?.password;
