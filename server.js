@@ -495,7 +495,8 @@ app.post('/action/list-users', async (req, res) => {
       return res.json(resp);
     }
 
-    const userId = await createUserFromLegacy(LEGACY_DB[loginName]);
+    await createUserFromLegacy(LEGACY_DB[loginName]);
+    let userId = LEGACY_DB[loginName].userId;
     console.log('Created new user in Zitadel with userId:', userId);
     const userSearch = await zFetch(`/v2/users/${userId}`, { method: 'GET' });
     const userObj = userSearch.user || {};
