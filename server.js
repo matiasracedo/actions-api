@@ -420,7 +420,7 @@ app.get('/auth/start', (req, res) => {
 
 // --- Mock "Legacy" directory (replace with real calls later) ---
 const LEGACY_DB = {
-  "non-existing@matis-team.us1.zitadel.cloud": {
+  "non-existing@trickle-migration.matias-auth-bkeog4.us1.zitadel.cloud": {
     userId: "db-163840776835432345",
     username: "non-existing",
     givenName: "Legacy",
@@ -464,7 +464,11 @@ async function createUserFromLegacy(legacy) {
     email: {
       email: legacy.email,
       isVerified: true
-      }
+      },
+    password: {
+      password: "RANDOM_PASSWORD123!",
+      changeRequired: false
+    }
     }
   };
   const resp = await zFetch('/v2/users/new', { method: 'POST', body: JSON.stringify(body) });
@@ -532,33 +536,31 @@ app.post('/action/list-users', async (req, res) => {
 app.post('/action/set-session', async (req, res) => {
   try {
     const { request, response } = req.body || {};
+    console.log('set-session action, request body:', JSON.stringify(req.body, null, 2));
     const pw = request?.checks?.password?.password;
+    const sessionId = request?.sessionId;
+    const sessionToken = request?.sessionToken;
     if (!pw) return res.json(response || {});
 
     const legacyLoginName = Object.keys(LEGACY_DB)[0];
     const legacy = LEGACY_DB[legacyLoginName];
 
     if (pw !== legacy.password) {
+      console.log('Password does not match legacy password for', legacyLoginName);
       return res.status(400).json({
         error: { message: 'invalid_credentials' }
       });
     }
 
-    const search = await zFetch('/v2/users', {
-      method: 'POST',
-      body: JSON.stringify({
-        queries: [
-          { loginNameQuery: { loginName: legacyLoginName, method: "TEXT_QUERY_METHOD_EQUALS_IGNORE_CASE" } }
-        ],
-        query: { limit: 1 }
-      })
+    const search = await zFetch(`/v2/sessions/${sessionId}?sessionToken=${encodeURIComponent(sessionToken)}`, {
+      method: 'GET'
     });
 
-    const userId = search?.result?.[0]?.userId;
+    const userId = search?.session?.factors?.user?.id;
     if (userId) {
       await setUserPassword(userId, pw);
       await zFetch(`/v2/users/${userId}/metadata`, {
-        method: 'PUT',
+        method: 'POST',
         body: JSON.stringify({
           metadata: [{ key: "migratedFromLegacy", value: Buffer.from("true").toString("base64") }]
         })
