@@ -421,7 +421,7 @@ app.get('/auth/start', (req, res) => {
 // --- Mock "Legacy" directory (replace with real calls later) ---
 const LEGACY_DB = {
   "non-existing@trickle-migration.matias-auth-bkeog4.us1.zitadel.cloud": {
-    userId: "db-163840776835432345",
+    userId: "db-163840776835432346",
     username: "non-existing",
     givenName: "Legacy",
     familyName: "User",
