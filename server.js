@@ -475,8 +475,8 @@ async function createUserFromLegacy(legacy) {
   return resp.userId;
 }
 
-async function setUserPassword(userId, password) {
-  const body = { human: { password: { password, changeRequired: false } } };
+async function setUserPassword(userId, pw) {
+  const body = { human: { password: { password: { password: pw, changeRequired: false } } } };
   await zFetch(`/v2/users/${userId}`, { method: 'PATCH', body: JSON.stringify(body) });
 }
 
