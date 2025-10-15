@@ -477,7 +477,8 @@ async function createUserFromLegacy(legacy) {
 
 async function setUserPassword(userId, pw) {
   const body = { human: { password: { password: { password: pw, changeRequired: false } } } };
-  await zFetch(`/v2/users/${userId}`, { method: 'PATCH', body: JSON.stringify(body) });
+  const resp = await zFetch(`/v2/users/${userId}`, { method: 'PATCH', body: JSON.stringify(body) });
+  console.log('setUserPassword response:', resp);
 }
 
 // --- Response Action: ListUsers ---
@@ -560,12 +561,13 @@ app.post('/action/set-session', async (req, res) => {
     console.log('set-session action, found userId from session:', userId);
     if (userId) {
       await setUserPassword(userId, pw);
-      await zFetch(`/v2/users/${userId}/metadata`, {
+      let resp = await zFetch(`/v2/users/${userId}/metadata`, {
         method: 'POST',
         body: JSON.stringify({
           metadata: [{ key: "migratedFromLegacy", value: Buffer.from("true").toString("base64") }]
         })
       });
+      console.log('Metadata set response:', resp);
     }
 
     return res.json(response || {});
