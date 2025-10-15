@@ -124,30 +124,6 @@ function redactToken(s, keep = 8) {
   return `${head}...<redacted>`;
 }
 
-// Helper function to generate a random password
-function generateRandomPassword() {
-  const length = 8;
-  const charset = {
-    lower: 'abcdefghijklmnopqrstuvwxyz',
-    upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-    symbol: '!@#$%^&*()_+[]{}|;:,.<>?',
-    number: '0123456789'
-  };
-
-  let password = '';
-  password += charset.lower[Math.floor(Math.random() * charset.lower.length)];
-  password += charset.upper[Math.floor(Math.random() * charset.upper.length)];
-  password += charset.symbol[Math.floor(Math.random() * charset.symbol.length)];
-  password += charset.number[Math.floor(Math.random() * charset.number.length)];
-
-  const allChars = charset.lower + charset.upper + charset.symbol + charset.number;
-  while (password.length < length) {
-    password += allChars[Math.floor(Math.random() * allChars.length)];
-  }
-
-  return password.split('').sort(() => Math.random() - 0.5).join(''); // Shuffle the password
-}
-
 // ---------------------------------------------------------------------------
 // 1) Complement token – preuserinfo  (sync restCall)
 // ---------------------------------------------------------------------------
@@ -456,7 +432,7 @@ const LEGACY_DB = {
   }
 };
 
-// --- Helpers ---
+// --- Helper functions ---
 async function zFetch(path, init = {}) {
   const res = await fetch(`https://${ZITADEL_DOMAIN}${path}`, {
     ...init,
@@ -471,6 +447,29 @@ async function zFetch(path, init = {}) {
     throw new Error(`Zitadel API ${path} failed: ${res.status} ${res.statusText} ${txt}`);
   }
   return res.json();
+}
+
+function generateRandomPassword() {
+  const length = 8;
+  const charset = {
+    lower: 'abcdefghijklmnopqrstuvwxyz',
+    upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    symbol: '!@#$%^&*()_+[]{}|;:,.<>?',
+    number: '0123456789'
+  };
+
+  let password = '';
+  password += charset.lower[Math.floor(Math.random() * charset.lower.length)];
+  password += charset.upper[Math.floor(Math.random() * charset.upper.length)];
+  password += charset.symbol[Math.floor(Math.random() * charset.symbol.length)];
+  password += charset.number[Math.floor(Math.random() * charset.number.length)];
+
+  const allChars = charset.lower + charset.upper + charset.symbol + charset.number;
+  while (password.length < length) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+
+  return password.split('').sort(() => Math.random() - 0.5).join(''); // Shuffle the password
 }
 
 async function createUserFromLegacy(legacy) {
@@ -502,41 +501,45 @@ async function createUserFromLegacy(legacy) {
 
 async function setUserPassword(userId, pw) {
   const body = { human: { password: { password: { password: pw, changeRequired: false } } } };
-  const resp = await zFetch(`/v2/users/${userId}`, { method: 'PATCH', body: JSON.stringify(body) });
-  console.log('setUserPassword response:', resp);
+  await zFetch(`/v2/users/${userId}`, { method: 'PATCH', body: JSON.stringify(body) });
 }
 
-// --- Response Action: ListUsers ---
+// --- Response Action (restCall): ListUsers ---
 app.post('/action/list-users', async (req, res) => {
   try {
     const body = req.body || {};
     const resp = body.response || {};
-    console.log('list-users action, request body:', JSON.stringify(body, null, 2));
     const userID = body.userID;
+
     // We only want to handle requests from the hosted login page
-    console.log('list-users action, userID:', userID);
-    if (userID !== 'zitadel-cloud-login') return res.json(resp);
+    if (userID !== 'zitadel-cloud-login') {
+      console.log('list-users action: ignoring request not coming from hosted login page');
+      return res.json(resp);
+    }
 
     const total = Number((resp.details && resp.details.totalResult) || 0);
-    console.log('list-users action, totalResult:', total);
-    if (total > 0) return res.json(resp);
+    if (total > 0) {
+      console.log('list-users action: user already found, skipping migration');
+      return res.json(resp);
+    }
 
     const q = (((body.request || {}).queries || [])[0] || {}).loginNameQuery;
     const loginName = q && q.loginName ? String(q.loginName) : null;
-    console.log('list-users action, loginName query:', loginName);
 
-    // Check if user exists in legacy DB
+    // Check if user exists in legacy DB (replace with real calls later)
+     // --->
     if (!loginName || !LEGACY_DB[loginName]) {
       console.log('No legacy user found for loginName:', loginName);
       return res.json(resp);
     }
+    // <---
 
+    // Create user in Zitadel from legacy data
     let userId = await createUserFromLegacy(LEGACY_DB[loginName]);
-    console.log('Created new user in Zitadel with userId:', userId);
 
+    // Retrieve newly created user for confirmation
     const userSearch = await zFetch(`/v2/users/${userId}`, { method: 'GET' });
     const userObj = userSearch.user || {};
-    console.log('Fetched user object:', userObj);
 
     const manipulated = {
       details: {
@@ -556,7 +559,6 @@ app.post('/action/list-users', async (req, res) => {
       ]
     };
 
-    console.log('Returning manipulated list-users response:', JSON.stringify(manipulated, null, 2));
     return res.json(manipulated);
   } catch (e) {
     console.error('list-users action error:', e);
@@ -564,24 +566,23 @@ app.post('/action/list-users', async (req, res) => {
   }
 });
 
-// --- Response Action: SetSession ---
+// --- Request Action (restWebhook): SetSession ---
 app.post('/action/set-session', async (req, res) => {
   try {
     const { request, response } = req.body || {};
-    console.log('set-session action, request body:', JSON.stringify(req.body, null, 2));
     const pw = request?.checks?.password?.password;
     const sessionId = request?.sessionId;
     const sessionToken = request?.sessionToken;
+
+    // We only want to handle requests adding a password check
     if (!pw) return res.json(response || {});
 
+    // Retrieve session details to get userId and loginName
     const search = await zFetch(`/v2/sessions/${sessionId}?sessionToken=${encodeURIComponent(sessionToken)}`, {
       method: 'GET'
     });
-
     const userId = search?.session?.factors?.user?.id;
-     console.log('set-session action, found userId from session:', userId);
     const legacyLoginName = search?.session?.factors?.user?.loginName;
-    console.log('set-session action, found loginName from session:', legacyLoginName);
 
     const metadataSearchBody = {
       filters: [
@@ -603,33 +604,35 @@ app.post('/action/set-session', async (req, res) => {
     const migratedMetadata = metadata.find(m => m.key === 'migratedFromLegacy');
     const migratedValue = migratedMetadata ? Buffer.from(migratedMetadata.value, 'base64').toString('utf8') : null;
 
+    // If user already migrated or no migration metadata, skip password set
     if (migratedValue === 'true') {
-      console.log('User already migrated, skipping password set:', userId);
+      console.info('User already migrated, skipping password set for user:', userId);
       return res.json(response || {});
     }
     if (metadata.length === 0) {
-      console.log('No migration metadata found, skipping password set for user:', userId);
+      console.info('No migration metadata found, skipping password set for user:', userId);
       return res.json(response || {});
     }
 
     // Verify user password in legacy DB
     const legacy = LEGACY_DB[legacyLoginName];
     if (pw !== legacy.password) {
-      console.log('Password does not match legacy password for', legacyLoginName);
-      return res.status(400).json({
-        error: { message: 'invalid_credentials' }
+      // Forward error through Zitadel if the password doesn't match - Interrupt on Error must be enabled
+      return res.status(200).json({
+          "forwardedStatusCode": 400,
+          "forwardedErrorMessage": "Wrong username or password. Please try again."
       });
     }
 
+    // Set user password in Zitadel and update metadata to mark migration complete
     if (userId) {
       await setUserPassword(userId, pw);
-      let resp = await zFetch(`/v2/users/${userId}/metadata`, {
+      await zFetch(`/v2/users/${userId}/metadata`, {
         method: 'POST',
         body: JSON.stringify({
           metadata: [{ key: "migratedFromLegacy", value: Buffer.from("true").toString("base64") }]
         })
       });
-      console.log('Metadata set response:', resp);
     }
 
     return res.json(response || {});
