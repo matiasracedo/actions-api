@@ -124,6 +124,30 @@ function redactToken(s, keep = 8) {
   return `${head}...<redacted>`;
 }
 
+// Helper function to generate a random password
+function generateRandomPassword() {
+  const length = 8;
+  const charset = {
+    lower: 'abcdefghijklmnopqrstuvwxyz',
+    upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    symbol: '!@#$%^&*()_+[]{}|;:,.<>?',
+    number: '0123456789'
+  };
+
+  let password = '';
+  password += charset.lower[Math.floor(Math.random() * charset.lower.length)];
+  password += charset.upper[Math.floor(Math.random() * charset.upper.length)];
+  password += charset.symbol[Math.floor(Math.random() * charset.symbol.length)];
+  password += charset.number[Math.floor(Math.random() * charset.number.length)];
+
+  const allChars = charset.lower + charset.upper + charset.symbol + charset.number;
+  while (password.length < length) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+
+  return password.split('').sort(() => Math.random() - 0.5).join(''); // Shuffle the password
+}
+
 // ---------------------------------------------------------------------------
 // 1) Complement token – preuserinfo  (sync restCall)
 // ---------------------------------------------------------------------------
@@ -466,13 +490,14 @@ async function createUserFromLegacy(legacy) {
       isVerified: true
       },
     password: {
-      password: "RandomPassword123!",
+      password: generateRandomPassword(),
       changeRequired: false
-    }
+    },
+    metadata: [{ key: "migratedFromLegacy", value: Buffer.from("migrating").toString("base64") }]
     }
   };
   const resp = await zFetch('/v2/users/new', { method: 'POST', body: JSON.stringify(body) });
-  return resp.userId;
+  return resp.id;
 }
 
 async function setUserPassword(userId, pw) {
@@ -495,14 +520,15 @@ app.post('/action/list-users', async (req, res) => {
     const loginName = q && q.loginName ? String(q.loginName) : null;
     console.log('list-users action, loginName query:', loginName);
 
+    // Check if user exists in legacy DB
     if (!loginName || !LEGACY_DB[loginName]) {
       console.log('No legacy user found for loginName:', loginName);
       return res.json(resp);
     }
 
-    await createUserFromLegacy(LEGACY_DB[loginName]);
-    let userId = LEGACY_DB[loginName].userId;
+    let userId = await createUserFromLegacy(LEGACY_DB[loginName]);
     console.log('Created new user in Zitadel with userId:', userId);
+
     const userSearch = await zFetch(`/v2/users/${userId}`, { method: 'GET' });
     const userObj = userSearch.user || {};
     console.log('Fetched user object:', userObj);
@@ -543,9 +569,46 @@ app.post('/action/set-session', async (req, res) => {
     const sessionToken = request?.sessionToken;
     if (!pw) return res.json(response || {});
 
-    const legacyLoginName = Object.keys(LEGACY_DB)[0];
-    const legacy = LEGACY_DB[legacyLoginName];
+    const search = await zFetch(`/v2/sessions/${sessionId}?sessionToken=${encodeURIComponent(sessionToken)}`, {
+      method: 'GET'
+    });
 
+    const userId = search?.session?.factors?.user?.id;
+     console.log('set-session action, found userId from session:', userId);
+    const legacyLoginName = search?.session?.factors?.user?.loginName;
+    console.log('set-session action, found loginName from session:', legacyLoginName);
+
+    const metadataSearchBody = {
+      filters: [
+        {
+          keyFilter: {
+            key: "migratedFromLegacy",
+            method: "TEXT_FILTER_METHOD_EQUALS"
+          }
+        }
+      ]
+    };
+
+    const metadataSearchResponse = await zFetch(`/v2/users/${userId}/metadata/search`, {
+      method: 'POST',
+      body: JSON.stringify(metadataSearchBody)
+    });
+
+    const metadata = metadataSearchResponse.metadata || [];
+    const migratedMetadata = metadata.find(m => m.key === 'migratedFromLegacy');
+    const migratedValue = migratedMetadata ? Buffer.from(migratedMetadata.value, 'base64').toString('utf8') : null;
+
+    if (migratedValue === 'true') {
+      console.log('User already migrated, skipping password set:', userId);
+      return res.json(response || {});
+    }
+    if (metadata.length === 0) {
+      console.log('No migration metadata found, skipping password set for user:', userId);
+      return res.json(response || {});
+    }
+
+    // Verify user password in legacy DB
+    const legacy = LEGACY_DB[legacyLoginName];
     if (pw !== legacy.password) {
       console.log('Password does not match legacy password for', legacyLoginName);
       return res.status(400).json({
@@ -553,12 +616,6 @@ app.post('/action/set-session', async (req, res) => {
       });
     }
 
-    const search = await zFetch(`/v2/sessions/${sessionId}?sessionToken=${encodeURIComponent(sessionToken)}`, {
-      method: 'GET'
-    });
-
-    const userId = search?.session?.factors?.user?.id;
-    console.log('set-session action, found userId from session:', userId);
     if (userId) {
       await setUserPassword(userId, pw);
       let resp = await zFetch(`/v2/users/${userId}/metadata`, {
