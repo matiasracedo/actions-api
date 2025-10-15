@@ -510,13 +510,13 @@ async function setUserPassword(userId, pw) {
 app.post('/action/list-users', async (req, res) => {
   try {
     const body = req.body || {};
+    const resp = body.response || {};
     console.log('list-users action, request body:', JSON.stringify(body, null, 2));
     const userID = body.userID;
     // We only want to handle requests from the hosted login page
     console.log('list-users action, userID:', userID);
     if (userID !== 'zitadel-cloud-login') return res.json(resp);
 
-    const resp = body.response || {};
     const total = Number((resp.details && resp.details.totalResult) || 0);
     console.log('list-users action, totalResult:', total);
     if (total > 0) return res.json(resp);
