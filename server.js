@@ -655,8 +655,6 @@ app.post('/action/set-password', async (req, res) => {
       return res.status(400).json({ error: 'Missing userId in request' });
     }
 
-    console.log('SetPassword action, userId:', userId);
-
     // Retrieve user metadata
     const metadataSearchBody = {
       filters: [
