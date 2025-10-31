@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  actions-api:
+    image: node:20-alpine
+    container_name: actions-api
+    working_dir: /usr/src/app
+    environment:
+      NODE_ENV: development
+      PORT: "5001"                      # your server will listen here
+    volumes:
+      - .:/usr/src/app:delegated        # mount your repo
+      - node_modules_cache:/usr/src/app/node_modules
+    command: sh -c "npm ci && npm run dev"   # uses your nodemon script
+    expose:
+      - "5001"                           # for other containers on the network
+    ports:
+      - "5001:5001"                      # optional: to hit from your host (curl/Postman)
+    networks:
+      - shared-dev
+    restart: unless-stopped
+
+networks:
+  shared-dev:
+    external: true
+
+volumes:
+  node_modules_cache:

@@ -1,5 +1,41 @@
-node_modules
-build
-npm-debug.log
+# dependencies
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# env & local config
 .env
+.env.*
+!.env.example
+*.local
+
+# logs & runtime
+logs/
+*.log
+*.pid
+tmp/
+.cache/
+
+# builds / coverage
+dist/
+build/
+coverage/
+.out/
+
+# editor/OS
+.vscode/
+.idea/
 .DS_Store
+
+# caches
+.eslintcache
+.turbo/
+
+# TLS/keys/secrets
+*.pat
+*.pem
+*.key
+*.pfx
+*.crt
+*.cer

@@ -245,10 +245,12 @@ app.post('/action/uniqueSession', async (req, res) => {
 
 app.post('/action/testClaims', async (req, res) => {
   // Validate signature first
+  /*
   const TEST_SIGNING_KEY = process.env.TEST_CLAIMS_SIGNING_KEY;
   if (!validateZitadelSignature(req, res, TEST_SIGNING_KEY)) {
     return; // Response already sent by validation function
   }
+    */
 
   let claims = {
     append_claims: [
@@ -642,7 +644,67 @@ app.post('/action/set-session', async (req, res) => {
   }
 });
 
+// --- Response Action: SetPassword ---
+app.post('/action/set-password', async (req, res) => {
+  try {
+    const { request, response } = req.body || {};
+    const userId = request?.userId;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+    if (!userId) {
+      console.error('Missing userId in SetPassword request');
+      return res.status(400).json({ error: 'Missing userId in request' });
+    }
+
+    console.log('SetPassword action, userId:', userId);
+
+    // Retrieve user metadata
+    const metadataSearchBody = {
+      filters: [
+        {
+          keyFilter: {
+            key: "migratedFromLegacy",
+            method: "TEXT_FILTER_METHOD_EQUALS"
+          }
+        }
+      ]
+    };
+
+    const metadataSearchResponse = await zFetch(`/v2/users/${userId}/metadata/search`, {
+      method: 'POST',
+      body: JSON.stringify(metadataSearchBody)
+    });
+
+    const metadata = metadataSearchResponse.metadata || [];
+    const migratedMetadata = metadata.find(m => m.key === 'migratedFromLegacy');
+    const migratedValue = migratedMetadata ? Buffer.from(migratedMetadata.value, 'base64').toString('utf8') : null;
+
+    // If user already migrated or no migration metadata, skip password set
+    if (migratedValue === 'true') {
+      console.info('User already migrated, skipping password set for user:', userId);
+      return res.json(response || {});
+    }
+    if (metadata.length === 0) {
+      console.info('No migration metadata found, skipping password set for user:', userId);
+      return res.json(response || {});
+    }
+
+    // If SetPassword response is successful, update metadata flag
+    console.info('SetPassword action successful, updating metadata for user:', userId);
+    await zFetch(`/v2/users/${userId}/metadata`, {
+      method: 'POST',
+      body: JSON.stringify({
+        metadata: [{ key: "migratedFromLegacy", value: Buffer.from("true").toString("base64") }]
+      })
+    });
+
+    return res.json(response || {});
+  } catch (e) {
+    console.error('SetPassword action error:', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`API listening on http://0.0.0.0:${PORT}`);
 });
