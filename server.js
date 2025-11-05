@@ -644,7 +644,7 @@ app.post('/action/set-session', async (req, res) => {
   }
 });
 
-// --- Response Action: SetPassword ---
+// --- Response Action (restWebhook): SetPassword ---
 app.post('/action/set-password', async (req, res) => {
   try {
     const { request, response } = req.body || {};
@@ -699,6 +699,96 @@ app.post('/action/set-password', async (req, res) => {
   } catch (e) {
     console.error('SetPassword action error:', e);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5) Authorization – preAccessToken (Function / restCall)
+//     Maps user_grants[].roles -> permissions via Org metadata
+//     and appends a "permissions" claim.
+// ---------------------------------------------------------------------------
+app.post('/action/authorization', async (req, res) => {
+  // Validate signature first
+  const AUTHORIZATION_SIGNING_KEY = process.env.AUTHORIZATION_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, AUTHORIZATION_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
+
+  try {
+    const { org, user_grants = [] } = req.body || {};
+    const orgId = org?.id;
+
+    if (!orgId) {
+      console.warn('authorization action: missing org.id in payload');
+      return res.json({ append_claims: [] });
+    }
+
+    // Fetch org metadata (v2beta)
+    const listMetaPath = '/zitadel.org.v2beta.OrganizationService/ListOrganizationMetadata';
+    const metaResp = await zFetch(listMetaPath, {
+      method: 'POST',
+      body: JSON.stringify({ organizationId: orgId })
+    });
+
+    const metaArr = (metaResp.metadata || metaResp.result || []).map(m => ({
+      key: m.key,
+      valueUtf8: (() => {
+        try {
+          const txt = Buffer.from(String(m.value || ''), 'base64').toString('utf8');
+          return /�{3,}/.test(txt) ? String(m.value || '') : txt;
+        } catch {
+          return String(m.value || '');
+        }
+      })()
+    }));
+
+    const metaToPerms = new Map();
+    for (const { key, valueUtf8 } of metaArr) {
+      if (!key) continue;
+      let parsed;
+      try {
+        parsed = JSON.parse(valueUtf8);
+      } catch {
+        parsed = String(valueUtf8)
+          .split(/[\s,]+/)
+          .map(s => s.trim())
+          .filter(Boolean);
+      }
+      const asArray = Array.isArray(parsed) ? parsed : [String(parsed)];
+      metaToPerms.set(key, asArray);
+    }
+
+    const roles = new Set();
+    for (const g of user_grants) {
+      (g.roles || []).forEach(r => r && roles.add(String(r)));
+    }
+
+    const permissions = [];
+    const seen = new Set();
+    for (const role of roles) {
+      const permsForRole = metaToPerms.get(role);
+      if (!permsForRole) continue;
+      for (const p of permsForRole) {
+        const perm = String(p);
+        if (!seen.has(perm)) {
+          seen.add(perm);
+          permissions.push(perm);
+        }
+      }
+    }
+
+    const append_claims = [];
+    if (permissions.length > 0) {
+      append_claims.push({ key: 'permissions', value: permissions });
+    }
+
+    console.log('authorization action -> roles:', Array.from(roles));
+    console.log('authorization action -> permissions:', permissions);
+
+    return res.json({ append_claims });
+  } catch (e) {
+    console.error('authorization action error:', e);
+    return res.json({ append_claims: [] });
   }
 });
 
