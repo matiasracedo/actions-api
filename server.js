@@ -782,13 +782,72 @@ app.post('/action/authorization', async (req, res) => {
       append_claims.push({ key: 'permissions', value: permissions });
     }
 
-    console.log('authorization action -> roles:', Array.from(roles));
-    console.log('authorization action -> permissions:', permissions);
+    console.info('authorization action -> roles:', Array.from(roles));
+    console.info('authorization action -> permissions:', permissions);
 
     return res.json({ append_claims });
   } catch (e) {
     console.error('authorization action error:', e);
     return res.json({ append_claims: [] });
+  }
+});
+
+// --- Event Action (restWebhook): SetRole ---
+app.post('/action/set-role', async (req, res) => {
+  // Validate signature first
+  const SET_ROLE_SIGNING_KEY = process.env.SET_ROLE_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, SET_ROLE_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
+
+  try {
+    const { resourceOwner, aggregateID } = req.body || {};
+
+    // Extract user details from payload
+    const userId = aggregateID;
+    const projectId = process.env.PROJECT_ID;
+    const organizationId = resourceOwner;
+    const roleKeys = (process.env.ROLE_KEYS || '').split(',');
+
+    if (!userId || !projectId || !organizationId || roleKeys.length === 0) {
+      console.error('Missing required parameters for set-role action');
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // Prepare the payload for CreateAuthorization
+    const createAuthPayload = {
+      userId,
+      projectId,
+      organizationId,
+      roleKeys
+    };
+
+    console.info('Creating authorization for user:', createAuthPayload);
+
+    // Call the CreateAuthorization endpoint
+    const response = await fetch(
+      `https://${process.env.ZITADEL_DOMAIN}/zitadel.authorization.v2.AuthorizationService/CreateAuthorization`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(createAuthPayload),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to create authorization:', response.status, errorText);
+      return res.status(500).json({ error: 'Failed to create authorization' });
+    }
+
+    console.info('Authorization created successfully for user:', userId);
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Error in set-role action:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
