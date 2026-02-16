@@ -329,6 +329,11 @@ app.post('/action/test', async (req, res) => {
 });
 
 app.post('/action/testv2', async (req, res) => {
+   // Validate signature first
+  const TESTV2_SIGNING_KEY = process.env.TESTV2_SIGNING_KEY;
+  if (!validateZitadelSignature(req, res, TESTV2_SIGNING_KEY)) {
+    return; // Response already sent by validation function
+  }
 
   console.log('=== TEST ACTION ===');
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
