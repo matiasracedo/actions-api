@@ -328,6 +328,25 @@ app.post('/action/test', async (req, res) => {
   res.status(200).json(response);
 });
 
+app.post('/action/testv2', async (req, res) => {
+
+  console.log('=== TEST ACTION ===');
+  console.log('Request Body:', JSON.stringify(req.body, null, 2));
+  console.log('=====================================');
+  
+  // For restCall target type, we need to return the request object back
+  // Extract the request from the payload and return it (unchanged in this case)
+  const { response } = req.body;
+  
+  if (!response) {
+    console.error('No response object found in payload');
+    return res.status(400).json({ error: 'No response object found in payload' });
+  }
+  
+  // Return the response object back to Zitadel (unchanged for logging purposes)
+  res.status(200).json(response);
+});
+
 // ---------------------------------------------------------------------------
 // 4) JWT IdP flow – start auth (sync restCall)
 // ---------------------------------------------------------------------------
