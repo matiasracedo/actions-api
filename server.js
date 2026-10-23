@@ -325,7 +325,8 @@ app.post('/action/test', async (req, res) => {
   }
   
   // Return the response object back to Zitadel (unchanged for logging purposes)
-  res.status(200).json(response);
+  //res.status(200).json(response);
+  res.status(429);
 });
 
 app.post('/action/testv2', async (req, res) => {
