@@ -335,11 +335,6 @@ app.post('/action/test', async (req, res) => {
   // Extract the request from the payload and return it (unchanged in this case)
   const { response } = req.body;
   
-  if (!response) {
-    console.error('No response object found in payload');
-    return res.status(400).json({ error: 'No response object found in payload' });
-  }
-  
   // Return the response object back to Zitadel (unchanged for logging purposes)
   res.status(200).json(response);
 });
