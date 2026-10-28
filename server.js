@@ -306,10 +306,10 @@ app.post('/action/testClaims', async (req, res) => {
 
 
 app.post('/action/test', async (req, res) => {
-  // Validate signature first
+  // 1. Validate signature
   const TEST_SIGNING_KEY = process.env.TEST_SIGNING_KEY;
   if (!validateZitadelSignature(req, res, TEST_SIGNING_KEY)) {
-    return; // Response already sent by validation function
+    return;
   }
 
   console.log('=== TEST ACTION ===');
@@ -320,23 +320,21 @@ app.post('/action/test', async (req, res) => {
   if (userId) {
     const rateLimitState = checkSmsRateLimit(String(userId));
     if (!rateLimitState.allowed) {
-      console.warn(`SMS rate limit reached for user ${userId}; blocking until ${new Date(rateLimitState.blockedUntil).toISOString()}`);
-      return res.status(429).json({
-        error: `The user ${userId} exceeded the number of allowed SMS messages`,
-        retryAfterMs: rateLimitState.retryAfterMs,
-        blockedUntil: new Date(rateLimitState.blockedUntil).toISOString(),
-        windowMs: 10 * 60 * 1000,
-        maxAttempts: 5,
+      console.warn(`SMS rate limit reached for user ${userId}; suppressing outbound message until ${new Date(rateLimitState.blockedUntil).toISOString()}`);
+      
+      // Return HTTP 200 to Zitadel so it considers the webhook handled and does not retry.
+      return res.status(200).json({
+        status: 'suppressed',
+        reason: 'rate_limit_exceeded',
+        userId: userId,
+        blockedUntil: new Date(rateLimitState.blockedUntil).toISOString()
       });
     }
   }
 
-  // For restCall target type, we need to return the request object back
-  // Extract the request from the payload and return it (unchanged in this case)
-  const { response } = req.body;
-  
-  // Return the response object back to Zitadel (unchanged for logging purposes)
-  res.status(200).json(response);
+  // Handle actual SMS dispatch here (e.g., Twilio / provider API)
+
+  return res.status(200).json({ status: 'success' });
 });
 
 app.post('/action/testv2', async (req, res) => {
