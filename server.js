@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const { uniqueSession } = require('./sessionManager');
+const { checkSmsRateLimit } = require('./smsRateLimitStore');
 require('dotenv').config();
 
 const app = express();
@@ -314,7 +315,22 @@ app.post('/action/test', async (req, res) => {
   console.log('=== TEST ACTION ===');
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
   console.log('=====================================');
-  
+
+  const userId = req.body?.args?.userID;
+  if (userId) {
+    const rateLimitState = checkSmsRateLimit(String(userId));
+    if (!rateLimitState.allowed) {
+      console.warn(`SMS rate limit reached for user ${userId}; blocking until ${new Date(rateLimitState.blockedUntil).toISOString()}`);
+      return res.status(429).json({
+        error: `The user ${userId} exceeded the number of allowed SMS messages`,
+        retryAfterMs: rateLimitState.retryAfterMs,
+        blockedUntil: new Date(rateLimitState.blockedUntil).toISOString(),
+        windowMs: 10 * 60 * 1000,
+        maxAttempts: 5,
+      });
+    }
+  }
+
   // For restCall target type, we need to return the request object back
   // Extract the request from the payload and return it (unchanged in this case)
   const { response } = req.body;
@@ -325,8 +341,7 @@ app.post('/action/test', async (req, res) => {
   }
   
   // Return the response object back to Zitadel (unchanged for logging purposes)
-  //res.status(200).json(response);
-  res.status(429);
+  res.status(200).json(response);
 });
 
 app.post('/action/testv2', async (req, res) => {
